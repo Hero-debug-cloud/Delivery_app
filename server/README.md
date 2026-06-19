@@ -6,14 +6,21 @@ Hono API server running on **Bun** with **Drizzle ORM** (mapping Postgres/PostGI
 
 ## 1. Development Commands
 
-### Installation & Run
+### Installation & Run (Local)
 - `bun install` — Fetch package dependencies.
 - `bun run dev` — Launch Hono live reload server on port 8000 (`src/index.ts`).
 - `bun run start` — Run API server in production mode.
 
+### Installation & Run (Docker)
+- `docker build -t logiroute-api .` — Build Bun/Hono image.
+- Refer to the root [docker-compose.yml](file:///Users/me/Projects/delivery_app/docker-compose.yml) to launch the full container stack (API, DB, Redis, OSRM).
+
 ### Database Migrations
 - `bun run db:generate` — Generate SQL migration schemas from schemas defined in typescript.
 - `bun run db:migrate` — Execute migrations against the target Postgres instance.
+
+### Database Initialization Script
+- **[`init.sql`](file:///Users/me/Projects/delivery_app/server/init.sql)**: Placed in the server directory and mounted inside the PostgreSQL container to automatically load `postgis` and `timescaledb` extensions.
 
 ---
 

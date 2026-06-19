@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # Database Service (PostgreSQL + TimescaleDB + PostGIS)
+  db:
+    image: ngosang/timescaledb-postgis:2.13.0-pg16-postgis3.4
+    container_name: logiroute-db
+    restart: always
+    environment:
+      POSTGRES_DB: logiroute
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # Cache & Ephemeral Telemetry Cache (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: logiroute-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # Routing Engine Service (OSRM Backend)
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: logiroute-osrm
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./osrm-data:/data
+    # Safe startup script: runs osrm-routed if data exists, otherwise prints instruction and sleeps
+    command: >
+      sh -c "
+      if [ -f /data/map.osrm ]; then
+        echo 'Starting OSRM routing engine...';
+        osrm-routed --algorithm mld /data/map.osrm;
+      else
+        echo '========================================================================';
+        echo 'WARNING: No processed OSRM map file found at /data/map.osrm.';
+        echo 'Please check root README.md for instructions on how to load map data.';
+        echo '========================================================================';
+        tail -f /dev/null;
+      fi
+      "
+
+  # API Backend Server (Hono + Bun)
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: logiroute-api
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      DATABASE_URL: postgres://postgres:postgres@db:5432/logiroute
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - db
+      - redis
+    command: >
+      sh -c "
+      until nc -z db 5432; do
+        echo 'Waiting for PostgreSQL database to start on port 5432...';
+        sleep 1;
+      done;
+      echo 'Database is online. Running Drizzle migrations...';
+      bun run db:migrate;
+      echo 'Migrations complete. Starting Hono API server...';
+      bun run start;
+      "
+
+  # Next.js Admin Frontend
+  client-admin:
+    build:
+      context: ./client-admin
+      dockerfile: Dockerfile
+    container_name: logiroute-client-admin
+    restart: always
+    ports:
+      - "3010:3000"
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  redisdata:

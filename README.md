@@ -35,30 +35,58 @@ This repository is structured as a **monorepo** containing the backend services,
 Detailed setup steps are located inside each subdirectory's `README.md`. Below is a quick overview to spin up the development environment.
 
 ### Pre-requisites
-- **Bun Runtime** (v1.3.14+)
-- **Flutter SDK** (v3.22.0+)
-- Running instances of **PostgreSQL** (with PostGIS/TimescaleDB extensions enabled) and **Redis**.
+- **Docker Desktop** (or Docker Engine + Compose plugin)
+- **Bun Runtime** (optional, for local development outside Docker)
+- **Flutter SDK** (for the mobile application)
 
-### Spinning Up Services
+### Spinning Up Services (Single Command)
 
-1. **Backend Database & API Server**:
+You can spin up the production or development environments using Docker:
+
+#### 1. Production Mode
+Runs the backend API, DB, Redis, OSRM, and the compiled Next.js admin frontend:
+```bash
+docker-compose up --build
+```
+
+#### 2. Local Development Mode (with Live Reload / Hot Reload)
+Runs all services (DB, Redis, OSRM, API Backend, and Admin Frontend) in local development mode. Any changes you make to the backend files in `server/` or frontend files in `client-admin/` will trigger instant hot-reload/recompilation:
+```bash
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+This command will:
+1. Initialize the Postgres container and automatically enable PostGIS + TimescaleDB.
+2. Spin up Redis on port 6379.
+3. Run the Hono API server in hot-reload watch mode (`bun run dev`) on http://localhost:8000.
+4. Run the Next.js admin frontend in development mode (`next dev`) on http://localhost:3010.
+5. Bind-mount the source folders so any code changes sync instantly to the containers.
+6. Mount the OSRM container on port 5000.
+
+#### Setting up OSRM road map data:
+By default, the OSRM container looks for a map file in `./osrm-data/map.osrm`. To load your city's routing map:
+1. Download an OSM PBF file (e.g. `bangalore.osm.pbf`) from [Geofabrik](https://download.geofabrik.de/).
+2. Place the file inside a folder named `./osrm-data/` in the project root.
+3. Run the processing commands:
    ```bash
-   cd server
-   bun install
-   # Configure environment variables in .env (copy from .env.example)
-   bun run db:generate
-   bun run db:migrate
-   bun run dev       # Starts Hono on http://localhost:8000
+   docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend osrm-extract -p /opt/car.lua /data/bangalore.osm.pbf
+   docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend osrm-partition /data/bangalore.osrm
+   docker run -t -v "${PWD}/osrm-data:/data" osrm/osrm-backend osrm-customize /data/bangalore.osrm
+   # Rename bangalore.osrm to map.osrm
+   mv osrm-data/bangalore.osrm osrm-data/map.osrm
    ```
+4. Restart OSRM: `docker-compose restart osrm`.
 
-2. **Web Admin Ops Dashboard**:
+### Running Client Dashboards
+
+1. **Web Admin Ops Dashboard**:
    ```bash
    cd client-admin
    bun install
    bun run dev       # Starts Next.js on http://localhost:3000
    ```
 
-3. **Flutter Mobile Application**:
+2. **Flutter Mobile Application**:
    ```bash
    cd client-app
    flutter pub get
