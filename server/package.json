@@ -1,0 +1,25 @@
+{
+  "name": "logiroute-server",
+  "version": "1.0.0",
+  "description": "LogiRoute Bun + Hono + Drizzle Backend Services",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun src/db/migrate.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.31.2",
+    "hono": "^4.4.7",
+    "ioredis": "^5.4.1",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "drizzle-kit": "^0.22.7",
+    "typescript": "^5.5.2"
+  }
+}

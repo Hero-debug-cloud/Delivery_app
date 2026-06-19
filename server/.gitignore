@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.bun/
+bun.lockb
+
+# Local Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Debug logs
+logs
+*.log
+npm-debug.log*
+
+# Editor / OS configs
+.DS_Store
+.vscode/
+.idea/
