@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LogiRoute Operations Dashboard
 
-## Getting Started
+Next.js 15+ App Router web portal integrated with **Tailwind CSS v4** and **shadcn/ui** components. Used by dispatchers, store managers, and admins to orchestrate last-mile logistics.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 1. Development Commands
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `bun install` — Fetch package dependencies.
+- `bun run dev` — Launch hot-reload dev server on port 3000.
+- `bun run build` — Compile production static build outputs (compiles TS and runs ESLint).
+- `bun run lint` — Lint files.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 2. Global State & Validation Architecture
 
-## Learn More
+This project is built around modern React libraries:
+- **Zod**: Used to construct schema definitions and validate form inputs.
+- **Zustand**: Lightweight client storage manager. Keeps global settings and caching variables persisted in `localStorage`.
+- **React Hook Form**: Manages complex form states with optimized input re-renders.
+- **TanStack Query (React Query)**: Handles backend API synchronizations, query mutations, cache invalidations, and HTTP error states.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 3. Directory Layout
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **`src/app/`** — Routing boundaries only. Contains route segments (`login/`, `(admin)/dashboard/`, `(admin)/stores/`, `(admin)/orders/`).
+- **`src/app/globals.css`** — Main Tailwind CSS file. Defines custom theme variables (colors, border radii, card shadows) matching the design system specifications.
+- **`src/components/ui/`** — Reusable, atomic shadcn/ui components (buttons, inputs, cards, tables).
+- **`src/features/`** — Contains all actual business logic, split by feature name (e.g., `orders/`, `stores/`, `tracking/`). Each feature folder houses its specific UI components, data hooks, types, and api.ts queries.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 4. UI Design Tokens
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Refer to `src/app/globals.css` to use configured brand variables:
+- **Primary Blues**: `bg-primary-600` for main CTAs, `text-primary-900` for branding, `bg-primary-50` for highlight backgrounds.
+- **Neutral slates**: `bg-neutral-50` for main body background, `text-neutral-950` for headings, `border-neutral-200` for dividers.
+- **Logistics Status**: Custom status color tokens (e.g. `bg-status-assigned`, `bg-status-delivered`, `bg-status-failed`).
+- **Radii**: `rounded-md` (12px), `rounded-lg` (24px) for cards.
+- **Shadows**: `shadow-card` for floating cards, `shadow-button-primary` for action buttons.
