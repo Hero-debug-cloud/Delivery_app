@@ -8,6 +8,20 @@
       "when": 1781905456476,
       "tag": "0000_clammy_warbird",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781907862109,
+      "tag": "0001_opposite_the_fallen",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781908153413,
+      "tag": "0002_lonely_grim_reaper",
+      "breakpoints": true
     }
   ]
 }
