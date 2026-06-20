@@ -1,7 +1,8 @@
 import { eq, or } from "drizzle-orm";
 import { db } from "../../db/index.ts";
-import { users, sessions } from "../../db/schema.ts";
+import { users, sessions, deliveryPartners } from "../../db/schema.ts";
 import { redis } from "../../redis/index.ts";
+import { getPresignedUrl } from "../upload/s3.ts";
 import type { AdminLoginInput, AdminSignupInput, AuthResult } from "./types.ts";
 
 const SESSION_DURATION_DEFAULT = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -154,13 +155,39 @@ export async function verifyOtp(
   await redis.del(otpKey(phone));
 
   // Find delivery partner by phone
-  const [user] = await db
+  let [user] = await db
     .select()
     .from(users)
     .where(eq(users.phone, phone))
     .limit(1);
 
-  if (!user) throw new Error("USER_NOT_FOUND");
+  if (!user) {
+    // Auto-register new driver user and partner record
+    const phoneSuffix = phone.substring(phone.length - 4);
+    const driverName = `Driver ${phoneSuffix}`;
+    user = await db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          name: driverName,
+          phone,
+          role: "delivery_partner",
+          isActive: true,
+        })
+        .returning();
+
+      await tx
+        .insert(deliveryPartners)
+        .values({
+          userId: newUser.id,
+          status: "offline",
+          onboardingStatus: "pending",
+        });
+
+      return newUser;
+    });
+  }
+
   if (!user.isActive) throw new Error("ACCOUNT_INACTIVE");
 
   const sessionId = generateSessionToken();
@@ -174,6 +201,27 @@ export async function verifyOtp(
     ipAddress: meta.ipAddress ?? null,
   });
 
+  // Resolve driver profile if user is a delivery partner
+  let driverProfile = null;
+  if (user.role === "delivery_partner") {
+    const [driver] = await db
+      .select()
+      .from(deliveryPartners)
+      .where(eq(deliveryPartners.userId, user.id))
+      .limit(1);
+
+    if (driver) {
+      driverProfile = {
+        ...driver,
+        licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
+        licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
+        vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
+        identityProofImage: driver.identityProofImage ? await getPresignedUrl(driver.identityProofImage) : null,
+        profilePictureUrl: driver.profilePictureUrl ? await getPresignedUrl(driver.profilePictureUrl) : null,
+      };
+    }
+  }
+
   return {
     sessionId,
     user: {
@@ -183,6 +231,7 @@ export async function verifyOtp(
       phone: user.phone,
       role: user.role,
       isActive: user.isActive,
+      driverProfile,
     },
   };
 }
@@ -203,6 +252,27 @@ export async function getMe(sessionId: string): Promise<AuthResult["user"] | nul
   const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
   if (!user) return null;
 
+  // Resolve driver profile if user is a delivery partner
+  let driverProfile = null;
+  if (user.role === "delivery_partner") {
+    const [driver] = await db
+      .select()
+      .from(deliveryPartners)
+      .where(eq(deliveryPartners.userId, user.id))
+      .limit(1);
+
+    if (driver) {
+      driverProfile = {
+        ...driver,
+        licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
+        licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
+        vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
+        identityProofImage: driver.identityProofImage ? await getPresignedUrl(driver.identityProofImage) : null,
+        profilePictureUrl: driver.profilePictureUrl ? await getPresignedUrl(driver.profilePictureUrl) : null,
+      };
+    }
+  }
+
   return {
     id: user.id,
     name: user.name,
@@ -210,6 +280,7 @@ export async function getMe(sessionId: string): Promise<AuthResult["user"] | nul
     phone: user.phone,
     role: user.role,
     isActive: user.isActive,
+    driverProfile,
   };
 }
 

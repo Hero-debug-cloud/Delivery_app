@@ -42,6 +42,7 @@ export interface AuthUser {
   phone: string | null;
   role: string;
   isActive: boolean;
+  driverProfile?: any;
 }
 
 export interface AuthResult {

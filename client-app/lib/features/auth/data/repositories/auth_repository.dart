@@ -30,10 +30,19 @@ class AuthRepository {
   Future<AuthUser?> getStoredUser() async {
     final id = await _secureStorage.read(key: _userIdKey);
     if (id == null) return null;
-    final name = await _secureStorage.read(key: _userNameKey) ?? '';
-    final role = await _secureStorage.read(key: _userRoleKey) ?? '';
-    final phone = await _secureStorage.read(key: _userPhoneKey);
-    return AuthUser(id: id, name: name, phone: phone, role: role);
+    try {
+      final user = await _remoteSource.getMe();
+      // Update local storage
+      await _secureStorage.write(key: _userNameKey, value: user.name);
+      await _secureStorage.write(key: _userRoleKey, value: user.role);
+      await _secureStorage.write(key: _userPhoneKey, value: user.phone);
+      return user;
+    } catch (_) {
+      final name = await _secureStorage.read(key: _userNameKey) ?? '';
+      final role = await _secureStorage.read(key: _userRoleKey) ?? '';
+      final phone = await _secureStorage.read(key: _userPhoneKey);
+      return AuthUser(id: id, name: name, phone: phone, role: role);
+    }
   }
 
   Future<void> logout() async {

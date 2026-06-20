@@ -23,6 +23,13 @@ export const driverStatusEnum = pgEnum("driver_status", [
   "busy"
 ]);
 
+export const onboardingStatusEnum = pgEnum("onboarding_status", [
+  "pending",
+  "submitted",
+  "approved",
+  "rejected"
+]);
+
 export const paymentTypeEnum = pgEnum("payment_type", [
   "prepaid",
   "cod"
@@ -69,9 +76,20 @@ export const deliveryPartners = pgTable("delivery_partners", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }).unique(),
   storeId: uuid("store_id").references(() => stores.id, { onDelete: "set null" }),
-  vehicleType: vehicleTypeEnum("vehicle_type").notNull(),
-  vehicleNumber: text("vehicle_number").notNull(),
+  vehicleType: vehicleTypeEnum("vehicle_type"),
+  vehicleNumber: text("vehicle_number"),
   status: driverStatusEnum("status").notNull().default("offline"),
+  onboardingStatus: onboardingStatusEnum("onboarding_status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  licenseNumber: text("license_number"),
+  licenseExpiry: text("license_expiry"),
+  licenseFrontUrl: text("license_front_url"),
+  licenseBackUrl: text("license_back_url"),
+  vehiclePlateImage: text("vehicle_plate_image"),
+  identityProofType: text("identity_proof_type"),
+  identityProofNumber: text("identity_proof_number"),
+  identityProofImage: text("identity_proof_image"),
+  profilePictureUrl: text("profile_picture_url"),
   isActive: boolean("is_active").notNull().default(true),
   currentLatitude: doublePrecision("current_latitude"),
   currentLongitude: doublePrecision("current_longitude"),

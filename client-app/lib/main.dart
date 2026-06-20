@@ -15,25 +15,53 @@ import 'screens/order_detail.dart';
 import 'screens/active_delivery.dart';
 import 'screens/pin_entry.dart';
 import 'screens/profile.dart';
+import 'screens/onboarding.dart';
+import 'screens/onboarding_review.dart';
 
 void main() {
   runApp(const LogiRouteApp());
 }
 
+class CookieInterceptor extends Interceptor {
+  String? _cookie;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (_cookie != null) {
+      options.headers['Cookie'] = _cookie;
+    }
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final rawCookies = response.headers['set-cookie'];
+    if (rawCookies != null && rawCookies.isNotEmpty) {
+      for (final rawCookie in rawCookies) {
+        if (rawCookie.startsWith('logiroute_session=')) {
+          _cookie = rawCookie.split(';').first;
+          break;
+        }
+      }
+    }
+    super.onResponse(response, handler);
+  }
+}
+
 class LogiRouteApp extends StatelessWidget {
   const LogiRouteApp({super.key});
 
-  static final _dio = Dio(
+  static final dio = Dio(
     BaseOptions(
       baseUrl: 'http://localhost:8000',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {'Content-Type': 'application/json'},
     ),
-  );
+  )..interceptors.add(CookieInterceptor());
 
   static const _secureStorage = FlutterSecureStorage();
-  static final _authRemoteSource = AuthRemoteSource(_dio);
+  static final _authRemoteSource = AuthRemoteSource(dio);
   static final _authRepository = AuthRepository(
     _authRemoteSource,
     _secureStorage,
@@ -63,13 +91,41 @@ class LogiRouteApp extends StatelessWidget {
       initialLocation: isAuthenticated ? '/dashboard' : '/login',
       redirect: (ctx, routerState) {
         final authCubit = context.read<AuthCubit>();
-        final authed = authCubit.state is AuthAuthenticated;
+        final authState = authCubit.state;
+        final authed = authState is AuthAuthenticated;
         final goingToAuth =
             routerState.matchedLocation == '/login' ||
             routerState.matchedLocation == '/otp-verify';
 
-        if (!authed && !goingToAuth) return '/login';
-        if (authed && goingToAuth) return '/dashboard';
+        if (!authed) {
+          if (!goingToAuth) return '/login';
+          return null;
+        }
+
+        // Check onboarding status
+        final user = (authState as AuthAuthenticated).user;
+        final onboardingStatus = user.driverProfile?.onboardingStatus ?? 'pending';
+
+        if (onboardingStatus == 'pending' || onboardingStatus == 'rejected') {
+          if (routerState.matchedLocation != '/onboarding') {
+            return '/onboarding';
+          }
+          return null;
+        } else if (onboardingStatus == 'submitted') {
+          if (routerState.matchedLocation != '/onboarding-review') {
+            return '/onboarding-review';
+          }
+          return null;
+        } else if (onboardingStatus == 'approved') {
+          final isRestrictedScreen =
+              routerState.matchedLocation == '/login' ||
+              routerState.matchedLocation == '/otp-verify' ||
+              routerState.matchedLocation == '/onboarding' ||
+              routerState.matchedLocation == '/onboarding-review';
+          if (isRestrictedScreen) return '/dashboard';
+          return null;
+        }
+
         return null;
       },
       routes: [
@@ -83,6 +139,14 @@ class LogiRouteApp extends StatelessWidget {
             final phone = state.extra as String? ?? '';
             return OtpVerifyScreen(phone: phone);
           },
+        ),
+        GoRoute(
+          path: '/onboarding',
+          builder: (ctx, state) => const DriverOnboardingScreen(),
+        ),
+        GoRoute(
+          path: '/onboarding-review',
+          builder: (ctx, state) => const OnboardingReviewScreen(),
         ),
         GoRoute(
           path: '/dashboard',

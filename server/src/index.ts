@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import { authRouter } from "./features/auth/router.ts";
 import { uploadRouter } from "./features/upload/index.ts";
 import { productsRouter } from "./features/products/index.ts";
+import { deliveryPartnersRouter } from "./features/delivery-partners/index.ts";
 import { db } from "./db/index.ts";
 import { stores as storesTable } from "./db/schema.ts";
 import { sql } from "drizzle-orm";
@@ -90,14 +91,8 @@ stores.patch("/:id", (c) => c.json({ message: "Store updated", id: c.req.param("
 stores.delete("/:id", (c) => c.json({ message: "Store deleted", id: c.req.param("id") }));
 app.route("/stores", stores);
 
-// Delivery Partners Routes Group (stubs)
-const partners = new Hono();
-partners.get("/", (c) => c.json({ delivery_partners: [] }));
-partners.post("/", (c) => c.json({ message: "Delivery partner created", id: "driver_stub_id" }, 201));
-partners.get("/:id", (c) => c.json({ id: c.req.param("id"), name: "Sarah Connor", status: "online" }));
-partners.patch("/:id", (c) => c.json({ message: "Driver profile updated", id: c.req.param("id") }));
-partners.post("/:id/status", (c) => c.json({ message: "Driver status updated", status: "busy" }));
-app.route("/delivery-partners", partners);
+// Delivery Partners Routes Group
+app.route("/delivery-partners", deliveryPartnersRouter);
 
 // Orders Routes Group (stubs)
 const orders = new Hono();
