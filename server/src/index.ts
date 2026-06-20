@@ -2,6 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { authRouter } from "./features/auth/router.ts";
+import { uploadRouter } from "./features/upload/index.ts";
+import { productsRouter } from "./features/products/index.ts";
+import { db } from "./db/index.ts";
+import { stores as storesTable } from "./db/schema.ts";
+import { sql } from "drizzle-orm";
 
 const app = new Hono();
 
@@ -27,9 +32,58 @@ app.get("/", (c) => {
 // Auth Routes
 app.route("/auth", authRouter);
 
+// Global Upload Routes
+app.route("/upload", uploadRouter);
+
+// Products & Categories Routes
+app.route("/", productsRouter);
+
 // Stores Routes Group (stubs — will be replaced in Stores module)
 const stores = new Hono();
-stores.get("/", (c) => c.json({ stores: [] }));
+stores.get("/", async (c) => {
+  try {
+    const pageQuery = c.req.query("page");
+    const page = pageQuery ? parseInt(pageQuery) : 1;
+
+    const limitQuery = c.req.query("limit");
+    const limit = limitQuery ? parseInt(limitQuery) : 10;
+
+    const offset = (page - 1) * limit;
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(storesTable);
+    const totalItems = countResult[0]?.count ?? 0;
+    const totalPages = Math.ceil(totalItems / limit);
+
+    const list = await db
+      .select()
+      .from(storesTable)
+      .limit(limit)
+      .offset(offset);
+
+    return c.json({
+      success: true,
+      message: "Stores fetched successfully",
+      data: list,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1,
+      },
+    }, 200);
+  } catch (err) {
+    console.error("Failed to query stores:", err);
+    return c.json({
+      success: false,
+      message: "Failed to fetch stores",
+      error: { code: "INTERNAL_SERVER_ERROR" },
+    }, 500);
+  }
+});
 stores.post("/", (c) => c.json({ message: "Store created", id: "store_stub_id" }, 201));
 stores.get("/:id", (c) => c.json({ id: c.req.param("id"), name: "Central Store" }));
 stores.patch("/:id", (c) => c.json({ message: "Store updated", id: c.req.param("id") }));

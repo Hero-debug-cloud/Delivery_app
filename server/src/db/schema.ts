@@ -102,6 +102,17 @@ export const customerAddresses = pgTable("customer_addresses", {
   };
 });
 
+// 4.5. product_categories Table
+export const productCategories = pgTable("product_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // 5. products Table
 export const products = pgTable("products", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -110,7 +121,8 @@ export const products = pgTable("products", {
   description: text("description"),
   price: integer("price").notNull(),
   unitSize: text("unit_size"),
-  category: text("category"),
+  category: text("category"), // legacy field, kept for compatibility
+  categoryId: uuid("category_id").references(() => productCategories.id, { onDelete: "set null" }),
   imageUrl: text("image_url"),
   isFeatured: boolean("is_featured").notNull().default(false),
   isVeg: boolean("is_veg").notNull().default(true),
@@ -120,6 +132,7 @@ export const products = pgTable("products", {
 }, (table) => {
   return {
     storeCategoryIdx: index("products_store_id_category_idx").on(table.storeId, table.category),
+    storeCategoryIdIdx: index("products_store_id_category_id_idx").on(table.storeId, table.categoryId),
     storeFeaturedIdx: index("products_store_id_is_featured_idx").on(table.storeId, table.isFeatured),
   };
 });
@@ -297,10 +310,18 @@ export const customerAddressesRelations = relations(customerAddresses, ({ one, m
   orders: many(orders),
 }));
 
+export const productCategoriesRelations = relations(productCategories, ({ many }) => ({
+  products: many(products),
+}));
+
 export const productsRelations = relations(products, ({ one, many }) => ({
   store: one(stores, {
     fields: [products.storeId],
     references: [stores.id],
+  }),
+  category: one(productCategories, {
+    fields: [products.categoryId],
+    references: [productCategories.id],
   }),
   cartItems: many(cartItems),
   orderItems: many(orderItems),

@@ -66,6 +66,22 @@ server/
 - Use request parameter validation on all incoming payload bodies before passing data to services.
 - Always implement clean error catches in controllers and pass unexpected errors down to Hono's global `onError` middleware.
 
+### Standardized API Responses & Pagination
+- **Envelope Wrapping**: All success responses must wrap data inside `{ success: true, message: string, data: T }`.
+- **Validation Errors**: For parsing/validation errors, return HTTP `400` with `{ success: false, message: "Validation Failed", errors: { [field]: string } }`.
+- **Paginated Tables & Dropdowns**: Every paginated table/dropdown API must return standard pagination metadata block:
+  ```json
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "totalItems": 45,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrevious": false
+  }
+  ```
+- **Controller Responsibilities**: Fetch parameters like `page`, `limit`, `search`, `sortBy`, `sortOrder` from queries, perform count queries inside services, and compute pagination metadata directly in controllers.
+
 ---
 
 ## 4. Module Smoke Tests
@@ -73,8 +89,11 @@ server/
 Run after starting the API server (`bun run dev`):
 
 ```bash
+# Authentication Smoke Tests (16 checks)
 ./scripts/smoke-test-auth.sh [BASE_URL]
-# Default: http://localhost:8000
+
+# Products, Categories & Stores Smoke Tests (21 checks)
+./scripts/smoke-test-products.sh [BASE_URL]
 ```
 
 ### Module 1 — Authentication (`src/features/auth/`)

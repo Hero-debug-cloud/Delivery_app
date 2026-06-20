@@ -55,3 +55,7 @@ dist/
 *.njsproj
 *.sln
 *.sw?
+
+# Scratch files
+server/scratch/
+

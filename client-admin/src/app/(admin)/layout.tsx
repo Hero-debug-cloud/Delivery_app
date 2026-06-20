@@ -12,6 +12,7 @@ import {
   LogOut,
   Bell,
   Search,
+  Package,
 } from "lucide-react";
 import { AuthGuard } from "@/lib/auth-guard";
 import { useAuthStore } from "@/features/auth/store";
@@ -49,6 +50,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navigation = [
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
     { href: "/stores", label: "Stores", icon: <Store size={20} /> },
+    { href: "/products", label: "Products", icon: <Package size={20} /> },
     { href: "/delivery-partners", label: "Drivers", icon: <Truck size={20} /> },
     { href: "/orders", label: "Orders", icon: <ClipboardList size={20} /> },
     { href: "/tracking", label: "Live Tracking", icon: <MapPin size={20} /> },

@@ -77,6 +77,13 @@ client-admin/
 - Wrap TanStack hooks inside custom hooks to shield components from raw query details.
 - Validate API responses using Zod schemas during query execution to enforce data integrity.
 
+### Backend-Driven Pagination & UI Calculations
+- The frontend must remain as dumb as possible: **never** compute pagination totals, availability of next/previous page, filtering, sorting, or total summaries (subtotals, metrics, counts, dashboard figures) client-side.
+- Read pagination parameters directly from the backend's standard `pagination` envelope: `{ success, message, data, pagination: { page, limit, totalItems, totalPages, hasNext, hasPrevious } }`.
+- Pass backend-driven pagination details directly to the reusable `PaginationFooter` component. Do not perform any slice or array chunk calculations in page or grid layouts.
+- In infinite scroll lists (using `useInfiniteQuery`), parameterize queries using page numbers starting at `1` and read the next page availability directly from the server's `pagination.hasNext` field.
+- **Search Input Debouncing**: For search query filters, always implement a client-side search input debouncer (e.g., using `useEffect` with a 300–400ms `setTimeout` delay) to prevent redundant API network requests on every keystroke.
+
 ### Styling & Theme Tokens
 - Refer to variables defined inside `src/app/globals.css` rather than hardcoding colors.
 - Use Tailwind CSS v4 design tokens (`bg-primary-600`, `text-neutral-950`, `shadow-card`, etc.) to match the brand specifications.
