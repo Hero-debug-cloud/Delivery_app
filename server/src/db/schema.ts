@@ -243,6 +243,21 @@ export const userPermissions = pgTable("user_permissions", {
   };
 });
 
+// 13. sessions Table
+export const sessions = pgTable("sessions", {
+  id: text("id").primaryKey(), // Session token string
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at").notNull(),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    userIdIdx: index("sessions_user_id_idx").on(table.userId),
+  };
+});
+
 // Relations Definitions
 export const usersRelations = relations(users, ({ one, many }) => ({
   deliveryPartner: one(deliveryPartners),
@@ -251,6 +266,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   orders: many(orders),
   orderEvents: many(orderEvents),
   permissions: many(userPermissions),
+  sessions: many(sessions),
 }));
 
 export const storesRelations = relations(stores, ({ many }) => ({
@@ -371,6 +387,13 @@ export const locationPingsRelations = relations(locationPings, ({ one }) => ({
 export const userPermissionsRelations = relations(userPermissions, ({ one }) => ({
   user: one(users, {
     fields: [userPermissions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, {
+    fields: [sessions.userId],
     references: [users.id],
   }),
 }));
