@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { QueryProvider } from "@/lib/query-provider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LogiRoute Ops Center",
-  description: "LogiRoute Live Operations & Dispatch Center",
+  title: "LogiRoute Ops",
+  description: "Last-mile delivery operations platform",
 };
 
 export default function RootLayout({
@@ -27,7 +28,11 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <QueryProvider>
+          {children}
+        </QueryProvider>
+      </body>
     </html>
   );
 }

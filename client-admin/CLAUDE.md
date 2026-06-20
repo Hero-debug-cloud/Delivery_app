@@ -81,3 +81,26 @@ client-admin/
 - Refer to variables defined inside `src/app/globals.css` rather than hardcoding colors.
 - Use Tailwind CSS v4 design tokens (`bg-primary-600`, `text-neutral-950`, `shadow-card`, etc.) to match the brand specifications.
 - Maintain responsive layout designs focusing on Desktop templates for operations screens and Mobile-responsiveness for public pages.
+
+---
+
+## 4. Module Smoke Tests
+
+### Module 1 — Authentication (Manual UI Verification)
+
+After running the dev server (`bun run dev` in `client-admin/`):
+
+| # | Test | Expected |
+|---|---|---|
+| 1 | Visit `/login` unauthenticated | Login page renders, no redirect loop |
+| 2 | Submit empty form | Inline validation errors shown, no API call |
+| 3 | Submit wrong password | Red error banner: "Invalid email/phone or password" |
+| 4 | Login with `admin@gmail.com` / `Admin@1234` | Redirect to `/dashboard`, session persists on refresh |
+| 5 | Visit `/dashboard` without cookie | Redirected to `/login` |
+| 6 | User name/role visible in sidebar footer after login | Sidebar shows real user name and role |
+| 7 | Click Sign Out | Clears session, redirects to `/login` |
+| 8 | Visit `/auth/signup`, fill form, submit | Creates account, redirects to `/dashboard` |
+| 9 | Signup with duplicate email | Shows "An account with this email already exists" |
+| 10 | Signup with mismatched passwords | Inline error shown before API call |
+
+**Auth Store**: User session is persisted in `localStorage` via Zustand `persist` middleware (`logiroute-auth` key). Clear it to test unauthenticated state.

@@ -1,0 +1,218 @@
+import { eq, or } from "drizzle-orm";
+import { db } from "../../db/index.ts";
+import { users, sessions } from "../../db/schema.ts";
+import { redis } from "../../redis/index.ts";
+import type { AdminLoginInput, AdminSignupInput, AuthResult } from "./types.ts";
+
+const SESSION_DURATION_DEFAULT = 60 * 60 * 24 * 7; // 7 days in seconds
+const SESSION_DURATION_REMEMBER = 60 * 60 * 24 * 30; // 30 days
+const OTP_TTL = 60 * 5; // 5 minutes
+
+function generateSessionToken(): string {
+  return crypto.randomUUID() + "-" + Date.now().toString(36);
+}
+
+function otpKey(phone: string) {
+  return `otp:${phone}`;
+}
+
+export async function adminLogin(
+  input: AdminLoginInput,
+  meta: { userAgent?: string; ipAddress?: string }
+): Promise<AuthResult> {
+  const identifier = input.identifier.trim();
+
+  // Find user by email OR phone
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(
+      or(
+        eq(users.email, identifier),
+        eq(users.phone, identifier)
+      )
+    )
+    .limit(1);
+
+  if (!user) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  if (!user.isActive) {
+    throw new Error("ACCOUNT_INACTIVE");
+  }
+
+  // Only admin roles allowed on web panel
+  if (!(["super_admin", "store_manager", "dispatcher"] as string[]).includes(user.role)) {
+    throw new Error("UNAUTHORIZED_ROLE");
+  }
+
+  if (!user.passwordHash) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  const valid = await Bun.password.verify(input.password, user.passwordHash);
+  if (!valid) {
+    throw new Error("INVALID_CREDENTIALS");
+  }
+
+  const sessionId = generateSessionToken();
+  const durationSec = input.rememberMe ? SESSION_DURATION_REMEMBER : SESSION_DURATION_DEFAULT;
+  const expiresAt = new Date(Date.now() + durationSec * 1000);
+
+  await db.insert(sessions).values({
+    id: sessionId,
+    userId: user.id,
+    expiresAt,
+    userAgent: meta.userAgent ?? null,
+    ipAddress: meta.ipAddress ?? null,
+  });
+
+  return {
+    sessionId,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  };
+}
+
+export async function adminSignup(
+  input: AdminSignupInput,
+  meta: { userAgent?: string; ipAddress?: string }
+): Promise<AuthResult> {
+  // Check duplicate
+  if (input.email) {
+    const [existing] = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+    if (existing) throw new Error("DUPLICATE_EMAIL");
+  }
+  if (input.phone) {
+    const [existing] = await db.select().from(users).where(eq(users.phone, input.phone)).limit(1);
+    if (existing) throw new Error("DUPLICATE_PHONE");
+  }
+
+  const passwordHash = await Bun.password.hash(input.password, { algorithm: "bcrypt", cost: 10 });
+
+  const [user] = await db
+    .insert(users)
+    .values({
+      name: input.name,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      passwordHash,
+      role: input.role ?? "dispatcher",
+      isActive: true,
+    })
+    .returning();
+
+  const sessionId = generateSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_DEFAULT * 1000);
+
+  await db.insert(sessions).values({
+    id: sessionId,
+    userId: user.id,
+    expiresAt,
+    userAgent: meta.userAgent ?? null,
+    ipAddress: meta.ipAddress ?? null,
+  });
+
+  return {
+    sessionId,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  };
+}
+
+export async function requestOtp(phone: string): Promise<void> {
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redis.set(otpKey(phone), otp, "EX", OTP_TTL);
+  // In production: send SMS via Twilio/MSG91
+  console.log(`[DEV OTP] phone: ${phone} code: ${otp}`);
+}
+
+export async function verifyOtp(
+  phone: string,
+  otp: string,
+  meta: { userAgent?: string; ipAddress?: string }
+): Promise<AuthResult> {
+  const stored = await redis.get(otpKey(phone));
+
+  if (!stored) throw new Error("OTP_EXPIRED");
+  if (stored !== otp) throw new Error("OTP_INVALID");
+
+  // Delete OTP after use
+  await redis.del(otpKey(phone));
+
+  // Find delivery partner by phone
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.phone, phone))
+    .limit(1);
+
+  if (!user) throw new Error("USER_NOT_FOUND");
+  if (!user.isActive) throw new Error("ACCOUNT_INACTIVE");
+
+  const sessionId = generateSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_DEFAULT * 1000);
+
+  await db.insert(sessions).values({
+    id: sessionId,
+    userId: user.id,
+    expiresAt,
+    userAgent: meta.userAgent ?? null,
+    ipAddress: meta.ipAddress ?? null,
+  });
+
+  return {
+    sessionId,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+    },
+  };
+}
+
+export async function getMe(sessionId: string): Promise<AuthResult["user"] | null> {
+  const [session] = await db
+    .select()
+    .from(sessions)
+    .where(eq(sessions.id, sessionId))
+    .limit(1);
+
+  if (!session) return null;
+  if (session.expiresAt < new Date()) {
+    await db.delete(sessions).where(eq(sessions.id, sessionId));
+    return null;
+  }
+
+  const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
+  if (!user) return null;
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    isActive: user.isActive,
+  };
+}
+
+export async function logout(sessionId: string): Promise<void> {
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
+}

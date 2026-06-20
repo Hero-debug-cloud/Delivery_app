@@ -65,3 +65,38 @@ server/
 ### Request Validation & Safety
 - Use request parameter validation on all incoming payload bodies before passing data to services.
 - Always implement clean error catches in controllers and pass unexpected errors down to Hono's global `onError` middleware.
+
+---
+
+## 4. Module Smoke Tests
+
+Run after starting the API server (`bun run dev`):
+
+```bash
+./scripts/smoke-test-auth.sh [BASE_URL]
+# Default: http://localhost:8000
+```
+
+### Module 1 — Authentication (`src/features/auth/`)
+
+| # | Test | Expected |
+|---|---|---|
+| 1 | `POST /auth/admin/login` valid creds | `200` + session cookie set |
+| 2 | `POST /auth/admin/login` wrong password | `401` |
+| 3 | `POST /auth/admin/login` unknown user | `401` |
+| 4 | `GET /auth/me` with valid cookie | `200` + `user.id` in body |
+| 5 | `GET /auth/me` without cookie | `401` |
+| 6 | `POST /auth/admin/signup` valid new user | `201` + session cookie |
+| 7 | `POST /auth/admin/signup` duplicate email | `409` |
+| 8 | `POST /auth/admin/signup` password mismatch | `400` |
+| 9 | `POST /auth/otp/request` valid phone | `200` |
+| 10 | `POST /auth/otp/verify` wrong OTP | `401` |
+| 11 | `POST /auth/otp/request` invalid phone (too short) | `400` |
+| 12 | `POST /auth/logout` with valid session | `200` |
+| 13 | `GET /auth/me` after logout | `401` |
+
+**OTP Dev Note**: In development, OTPs are printed to the server console log:
+```
+[DEV OTP] phone: +91XXXXXXXXXX code: 123456
+```
+No real SMS is sent. For production, integrate Twilio/MSG91 inside `src/features/auth/service.ts#requestOtp`.

@@ -1,15 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { authRouter } from "./features/auth/router.ts";
 
 const app = new Hono();
 
 // Global Middleware
 app.use("*", logger());
 app.use("*", cors({
-  origin: "*",
+  origin: ["http://localhost:3000", "http://localhost:3010"],
   allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
 }));
 
 // Base / Healthcheck
@@ -22,16 +24,10 @@ app.get("/", (c) => {
   });
 });
 
-// Auth Routes Group
-const auth = new Hono();
-auth.post("/admin/login", (c) => c.json({ message: "Admin login success", token: "jwt_admin_token_stub" }));
-auth.post("/otp/request", (c) => c.json({ message: "OTP sent successfully" }));
-auth.post("/otp/verify", (c) => c.json({ message: "OTP verification success", token: "jwt_otp_token_stub", role: "delivery_partner" }));
-auth.post("/logout", (c) => c.json({ message: "Logged out successfully" }));
-auth.get("/me", (c) => c.json({ id: "user_stub_id", name: "John Doe", role: "dispatcher" }));
-app.route("/auth", auth);
+// Auth Routes
+app.route("/auth", authRouter);
 
-// Stores Routes Group
+// Stores Routes Group (stubs — will be replaced in Stores module)
 const stores = new Hono();
 stores.get("/", (c) => c.json({ stores: [] }));
 stores.post("/", (c) => c.json({ message: "Store created", id: "store_stub_id" }, 201));
@@ -40,7 +36,7 @@ stores.patch("/:id", (c) => c.json({ message: "Store updated", id: c.req.param("
 stores.delete("/:id", (c) => c.json({ message: "Store deleted", id: c.req.param("id") }));
 app.route("/stores", stores);
 
-// Delivery Partners Routes Group
+// Delivery Partners Routes Group (stubs)
 const partners = new Hono();
 partners.get("/", (c) => c.json({ delivery_partners: [] }));
 partners.post("/", (c) => c.json({ message: "Delivery partner created", id: "driver_stub_id" }, 201));
@@ -49,7 +45,7 @@ partners.patch("/:id", (c) => c.json({ message: "Driver profile updated", id: c.
 partners.post("/:id/status", (c) => c.json({ message: "Driver status updated", status: "busy" }));
 app.route("/delivery-partners", partners);
 
-// Orders Routes Group
+// Orders Routes Group (stubs)
 const orders = new Hono();
 orders.get("/", (c) => c.json({ orders: [] }));
 orders.post("/", (c) => c.json({ message: "Order created", id: "order_stub_id" }, 201));
@@ -64,7 +60,7 @@ orders.post("/:id/delivered", (c) => c.json({ message: "Order delivered confirme
 orders.post("/:id/failed", (c) => c.json({ message: "Order marked failed", order_id: c.req.param("id") }));
 app.route("/orders", orders);
 
-// Location Routes Group
+// Location Routes Group (stubs)
 const locations = new Hono();
 locations.post("/ping", (c) => c.json({ message: "Telemetry ping recorded" }));
 locations.get("/drivers/:driverId/latest", (c) => c.json({ driverId: c.req.param("driverId"), lat: 12.9716, lng: 77.5946 }));
@@ -72,7 +68,7 @@ locations.get("/orders/:orderId/latest", (c) => c.json({ orderId: c.req.param("o
 locations.get("/orders/:orderId/history", (c) => c.json({ orderId: c.req.param("orderId"), pings: [] }));
 app.route("/locations", locations);
 
-// Customer Tracking Routes Group
+// Customer Tracking Routes Group (stubs)
 const tracking = new Hono();
 tracking.get("/:trackingToken", (c) => c.json({ order_id: "order_stub_id", status: "in_transit", eta: "15 mins" }));
 tracking.get("/:trackingToken/location", (c) => c.json({ lat: 12.9716, lng: 77.5946 }));
@@ -80,7 +76,7 @@ app.route("/track", tracking);
 
 // Error Handling
 app.onError((err, c) => {
-  console.error("Unhandle Server Error:", err);
+  console.error("Unhandled Server Error:", err);
   return c.json({ error: "Internal Server Error", message: err.message }, 500);
 });
 
