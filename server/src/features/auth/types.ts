@@ -28,12 +28,21 @@ export const otpRequestSchema = z.object({
 export const otpVerifySchema = z.object({
   phone: z.string().min(6),
   otp: z.string().length(6, "OTP must be 6 digits"),
+  role: z.enum(["delivery_partner", "customer"]).optional(),
+});
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(1, "Name cannot be empty").max(100).optional(),
+  email: z.string().email("Invalid email format").nullable().optional(),
+  phone: z.string().nullable().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters").nullable().optional(),
 });
 
 export type AdminLoginInput = z.infer<typeof adminLoginSchema>;
 export type AdminSignupInput = z.infer<typeof adminSignupSchema>;
 export type OtpRequestInput = z.infer<typeof otpRequestSchema>;
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 export interface AuthUser {
   id: string;

@@ -3,8 +3,9 @@ import {
   apiGetDeliveryPartners,
   apiApproveDriver,
   apiRejectDriver,
+  apiCreateDriver,
 } from "../api";
-import type { GetDriversParams } from "../types";
+import type { GetDriversParams, CreateDriverInput } from "../types";
 
 export function useDeliveryPartners(params?: GetDriversParams) {
   const queryClient = useQueryClient();
@@ -29,6 +30,13 @@ export function useDeliveryPartners(params?: GetDriversParams) {
     },
   });
 
+  const createDriverMutation = useMutation({
+    mutationFn: apiCreateDriver,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["delivery-partners"] });
+    },
+  });
+
   return {
     drivers: driversQuery.data?.data ?? [],
     pagination: driversQuery.data?.pagination,
@@ -39,5 +47,7 @@ export function useDeliveryPartners(params?: GetDriversParams) {
     isApproving: approveDriverMutation.isPending,
     rejectDriver: rejectDriverMutation.mutateAsync,
     isRejecting: rejectDriverMutation.isPending,
+    createDriver: createDriverMutation.mutateAsync,
+    isCreating: createDriverMutation.isPending,
   };
 }

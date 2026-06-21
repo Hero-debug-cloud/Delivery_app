@@ -112,6 +112,8 @@ export const customerAddresses = pgTable("customer_addresses", {
   latitude: doublePrecision("latitude").notNull(),
   longitude: doublePrecision("longitude").notNull(),
   isDefault: boolean("is_default").notNull().default(false),
+  recipientName: text("recipient_name"),
+  recipientPhone: text("recipient_phone"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => {
@@ -142,6 +144,11 @@ export const products = pgTable("products", {
   category: text("category"), // legacy field, kept for compatibility
   categoryId: uuid("category_id").references(() => productCategories.id, { onDelete: "set null" }),
   imageUrl: text("image_url"),
+  images: jsonb("images").$type<string[]>().default([]),
+  brand: text("brand"),
+  shelfLife: text("shelf_life"),
+  origin: text("origin"),
+  ingredients: text("ingredients"),
   isFeatured: boolean("is_featured").notNull().default(false),
   isVeg: boolean("is_veg").notNull().default(true),
   inStock: boolean("in_stock").notNull().default(true),

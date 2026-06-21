@@ -15,11 +15,21 @@ export const onboardDriverSchema = z.object({
   profilePictureUrl: z.string().min(1, "Profile picture is required"),
 });
 
+export const createDriverSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  phone: z.string().min(6, "Valid phone number is required"),
+  email: z.string().email().optional().nullable(),
+  storeId: z.string().uuid("Invalid store ID").optional().nullable(),
+  vehicleType: z.enum(["motorcycle", "bicycle", "car", "van"]).optional().default("motorcycle"),
+  vehicleNumber: z.string().optional().nullable(),
+});
+
 export const rejectDriverSchema = z.object({
   reason: z.string().min(1, "Rejection reason is required").max(500),
 });
 
 export type OnboardDriverInput = z.infer<typeof onboardDriverSchema>;
+export type CreateDriverInput = z.infer<typeof createDriverSchema>;
 export type RejectDriverInput = z.infer<typeof rejectDriverSchema>;
 
 export interface GetDriversFilters {

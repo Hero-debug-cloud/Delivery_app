@@ -21,6 +21,11 @@ export interface Product {
   categoryId: string | null;
   categoryName?: string;
   imageUrl: string | null;
+  images: string[] | null;
+  brand: string | null;
+  shelfLife: string | null;
+  origin: string | null;
+  ingredients: string | null;
   isFeatured: boolean;
   isVeg: boolean;
   inStock: boolean;

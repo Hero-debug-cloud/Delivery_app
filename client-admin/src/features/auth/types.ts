@@ -19,3 +19,10 @@ export interface SignupFormValues {
   password: string;
   confirmPassword: string;
 }
+
+export interface UpdateProfileFormValues {
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+}

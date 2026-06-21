@@ -8,10 +8,12 @@ import {
   Search, 
   UserCheck,
   AlertCircle,
-  FileText
+  FileText,
+  Plus
 } from "lucide-react";
 import { useDeliveryPartners } from "@/features/delivery-partners/hooks/useDeliveryPartners";
 import { DriverVerificationModal } from "@/features/delivery-partners/components/DriverVerificationModal";
+import { CreateDriverModal } from "@/features/delivery-partners/components/CreateDriverModal";
 import { PaginationFooter } from "@/components/shared/PaginationFooter";
 import type { DeliveryPartner } from "@/features/delivery-partners/types";
 
@@ -24,6 +26,7 @@ export default function DeliveryPartnersPage() {
   const [page, setPage] = useState(1);
   const [selectedDriver, setSelectedDriver] = useState<DeliveryPartner | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Debounce search query to prevent excessive API hits
   useEffect(() => {
@@ -48,6 +51,8 @@ export default function DeliveryPartnersPage() {
     isApproving,
     rejectDriver,
     isRejecting,
+    createDriver,
+    isCreating,
   } = useDeliveryPartners({
     onboardingStatus,
     search: debouncedSearch,
@@ -89,6 +94,13 @@ export default function DeliveryPartnersPage() {
             Review driver onboard applications, approve license/vehicle registrations, and monitor status.
           </p>
         </div>
+        <button 
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-primary-600 hover:bg-primary-700 text-white font-semibold text-[14px] px-4 py-2.5 rounded-md flex items-center gap-2 shadow-button-primary transition-all cursor-pointer"
+        >
+          <Plus size={16} />
+          <span>Add New Driver</span>
+        </button>
       </div>
 
       {/* Main content card */}
@@ -296,6 +308,16 @@ export default function DeliveryPartnersPage() {
         }}
         isApproving={isApproving}
         isRejecting={isRejecting}
+      />
+
+      {/* Create Driver Modal */}
+      <CreateDriverModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={async (data) => {
+          await createDriver(data);
+        }}
+        isCreating={isCreating}
       />
     </div>
   );

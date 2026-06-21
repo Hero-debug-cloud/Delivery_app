@@ -23,6 +23,15 @@ export interface DeliveryPartner {
   email: string | null;
 }
 
+export interface CreateDriverInput {
+  name: string;
+  phone: string;
+  email?: string | null;
+  storeId?: string | null;
+  vehicleType?: "motorcycle" | "bicycle" | "car" | "van";
+  vehicleNumber?: string | null;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;

@@ -334,6 +334,124 @@ else
 fi
 
 # -----------------------------------------------------------
+# 15. Admin Manually Creates New Driver
+# -----------------------------------------------------------
+log_section "15. Admin Manually Creates Driver"
+MANUAL_DRIVER_PHONE="+919876599999"
+RESP=$(curl -s -b "$ADMIN_COOKIE_JAR" -w "\n%{http_code}" \
+  -X POST "${BASE_URL}/delivery-partners" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"Manual Test Driver\",
+    \"phone\": \"$MANUAL_DRIVER_PHONE\",
+    \"email\": \"manual_driver@gmail.com\",
+    \"vehicleType\": \"car\",
+    \"vehicleNumber\": \"KA03EX9999\"
+  }")
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+
+if [ "$HTTP_CODE" = "201" ]; then
+  log_pass "Driver manually created by admin successfully → 201"
+  MANUAL_DRIVER_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+  log_pass "Manual Driver ID: $MANUAL_DRIVER_ID"
+else
+  log_fail "Manual driver creation failed" "HTTP $HTTP_CODE — $BODY"
+  exit 1
+fi
+
+# -----------------------------------------------------------
+# 16. Request OTP for Manually Created Driver
+# -----------------------------------------------------------
+log_section "16. Request OTP for Manual Driver"
+RESP=$(curl -s -w "\n%{http_code}" \
+  -X POST "${BASE_URL}/auth/otp/request" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$MANUAL_DRIVER_PHONE\"}")
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+
+if [ "$HTTP_CODE" = "200" ]; then
+  log_pass "OTP requested successfully for manual driver → 200"
+else
+  log_fail "OTP request failed for manual driver" "HTTP $HTTP_CODE — $BODY"
+  exit 1
+fi
+
+# -----------------------------------------------------------
+# 17. Retrieve OTP from Redis Container for Manual Driver
+# -----------------------------------------------------------
+log_section "17. Retrieve Manual Driver OTP from Redis"
+MANUAL_OTP_CODE=$(docker exec logiroute-redis-dev redis-cli get "otp:$MANUAL_DRIVER_PHONE" | tr -d '\r\n')
+if [ -n "$MANUAL_OTP_CODE" ] && [ "$MANUAL_OTP_CODE" != "nil" ]; then
+  log_pass "Successfully retrieved OTP code: $MANUAL_OTP_CODE"
+else
+  log_fail "Failed to retrieve OTP code from Redis" "Redis returned: $MANUAL_OTP_CODE"
+  exit 1
+fi
+
+# -----------------------------------------------------------
+# 18. Verify OTP for Manually Created Driver
+# -----------------------------------------------------------
+log_section "18. Verify OTP & Authenticate Manual Driver"
+MANUAL_DRIVER_COOKIE_JAR=$(mktemp)
+RESP=$(curl -s -c "$MANUAL_DRIVER_COOKIE_JAR" -w "\n%{http_code}" \
+  -X POST "${BASE_URL}/auth/otp/verify" \
+  -H "Content-Type: application/json" \
+  -d "{\"phone\":\"$MANUAL_DRIVER_PHONE\",\"otp\":\"$MANUAL_OTP_CODE\"}")
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+
+if [ "$HTTP_CODE" = "200" ]; then
+  log_pass "OTP verified and manual driver session created → 200"
+  ROLE=$(echo "$BODY" | grep -o '"role":"[^"]*"' | cut -d'"' -f4)
+  if [ "$ROLE" = "delivery_partner" ]; then
+    log_pass "Verified user has delivery_partner role"
+  else
+    log_fail "User role should be delivery_partner" "$BODY"
+  fi
+else
+  log_fail "OTP verification failed for manual driver" "HTTP $HTTP_CODE — $BODY"
+  exit 1
+fi
+
+# -----------------------------------------------------------
+# 19. Check Driver Profile State (Pending) and Details
+# -----------------------------------------------------------
+log_section "19. Verify Manual Driver Profile details via GET /auth/me"
+RESP=$(curl -s -b "$MANUAL_DRIVER_COOKIE_JAR" -w "\n%{http_code}" \
+  "${BASE_URL}/auth/me")
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+
+if [ "$HTTP_CODE" = "200" ]; then
+  STATUS=$(echo "$BODY" | grep -o '"onboardingStatus":"[^"]*"' | cut -d'"' -f4)
+  NAME=$(echo "$BODY" | grep -o '"name":"[^"]*"' | head -n 1 | cut -d'"' -f4)
+  VEHICLE_NUM=$(echo "$BODY" | grep -o '"vehicleNumber":"[^"]*"' | cut -d'"' -f4)
+  
+  if [ "$STATUS" = "pending" ]; then
+    log_pass "Manual driver onboarding status is pending"
+  else
+    log_fail "Onboarding status should be pending" "$BODY"
+  fi
+  
+  if [ "$NAME" = "Manual Test Driver" ]; then
+    log_pass "Manual driver name is correctly: $NAME"
+  else
+    log_fail "Driver name should be Manual Test Driver" "$BODY"
+  fi
+
+  if [ "$VEHICLE_NUM" = "KA03EX9999" ]; then
+    log_pass "Manual driver vehicle number is correctly: $VEHICLE_NUM"
+  else
+    log_fail "Vehicle number should be KA03EX9999" "$BODY"
+  fi
+else
+  log_fail "GET /auth/me failed for manual driver" "HTTP $HTTP_CODE — $BODY"
+  exit 1
+fi
+
+# -----------------------------------------------------------
 # Summary
 # -----------------------------------------------------------
 echo ""
@@ -345,10 +463,10 @@ echo -e "  ${RED}FAIL: $FAIL${RESET}"
 echo ""
 
 # Clean up temp files
-rm -f "$DRIVER_COOKIE_JAR" "$ADMIN_COOKIE_JAR"
+rm -f "$DRIVER_COOKIE_JAR" "$ADMIN_COOKIE_JAR" "$MANUAL_DRIVER_COOKIE_JAR"
 
-# Delete test driver from database to clean up
-docker exec -i logiroute-db-dev psql -U postgres -d logiroute -c "DELETE FROM users WHERE phone = '$DRIVER_PHONE';" > /dev/null 2>&1
+# Delete test drivers from database to clean up
+docker exec -i logiroute-db-dev psql -U postgres -d logiroute -c "DELETE FROM users WHERE phone IN ('$DRIVER_PHONE', '$MANUAL_DRIVER_PHONE');" > /dev/null 2>&1
 
 if [ "$FAIL" -gt 0 ]; then
   echo -e "${RED}❌ Smoke tests FAILED ($FAIL failures)${RESET}"

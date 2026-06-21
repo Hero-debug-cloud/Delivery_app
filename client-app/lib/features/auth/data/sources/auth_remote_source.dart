@@ -16,10 +16,14 @@ class AuthRemoteSource {
     }
   }
 
-  Future<AuthUser> verifyOtp(String phone, String otp) async {
+  Future<AuthUser> verifyOtp(String phone, String otp, {String? role}) async {
     final response = await _dio.post(
       '/auth/otp/verify',
-      data: {'phone': phone, 'otp': otp},
+      data: {
+        'phone': phone,
+        'otp': otp,
+        if (role != null) 'role': role,
+      },
     );
     if (response.statusCode != 200) {
       final error = response.data['error'] ?? 'OTP verification failed';
@@ -38,5 +42,20 @@ class AuthRemoteSource {
 
   Future<void> logout() async {
     await _dio.post('/auth/logout');
+  }
+
+  Future<AuthUser> updateProfile({String? name, String? email}) async {
+    final response = await _dio.patch(
+      '/auth/me',
+      data: {
+        if (name != null) 'name': name,
+        if (email != null) 'email': email,
+      },
+    );
+    if (response.statusCode != 200) {
+      final error = response.data['error'] ?? 'Profile update failed';
+      throw Exception(error);
+    }
+    return AuthUser.fromJson(response.data['user'] as Map<String, dynamic>);
   }
 }

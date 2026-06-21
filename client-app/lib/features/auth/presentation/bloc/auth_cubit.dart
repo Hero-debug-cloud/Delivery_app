@@ -31,10 +31,10 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  Future<void> verifyOtp(String phone, String otp) async {
+  Future<void> verifyOtp(String phone, String otp, {String? role}) async {
     emit(const AuthLoading());
     try {
-      final user = await _repository.verifyOtp(phone, otp);
+      final user = await _repository.verifyOtp(phone, otp, role: role);
       emit(AuthAuthenticated(user: user));
     } catch (e) {
       emit(AuthError(message: e.toString().replaceFirst('Exception: ', '')));
@@ -46,6 +46,16 @@ class AuthCubit extends Cubit<AuthState> {
       await _repository.logout();
     } finally {
       emit(const AuthUnauthenticated());
+    }
+  }
+
+  Future<void> updateProfile({String? name, String? email}) async {
+    final currentState = state;
+    if (currentState is AuthAuthenticated) {
+      final updatedUser = await _repository.updateProfile(name: name, email: email);
+      emit(AuthAuthenticated(user: updatedUser));
+    } else {
+      throw Exception("User is not authenticated");
     }
   }
 }

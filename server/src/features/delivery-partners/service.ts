@@ -2,7 +2,7 @@ import { eq, and, or, like, desc, sql } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { users, deliveryPartners } from "../../db/schema.ts";
 import { getPresignedUrl } from "../upload/s3.ts";
-import type { OnboardDriverInput, GetDriversFilters } from "./types.ts";
+import type { OnboardDriverInput, GetDriversFilters, CreateDriverInput } from "./types.ts";
 
 export async function onboardDriver(userId: string, input: OnboardDriverInput): Promise<void> {
   // Check if driver profile exists
@@ -184,4 +184,60 @@ export async function rejectDriver(driverId: string, reason: string): Promise<vo
       updatedAt: new Date(),
     })
     .where(eq(deliveryPartners.id, driverId));
+}
+
+export async function createDriver(input: CreateDriverInput): Promise<string> {
+  // Check phone duplicate
+  const [existingPhone] = await db
+    .select()
+    .from(users)
+    .where(eq(users.phone, input.phone))
+    .limit(1);
+    
+  if (existingPhone) {
+    throw new Error("PHONE_EXISTS");
+  }
+
+  // Check email duplicate
+  if (input.email) {
+    const [existingEmail] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, input.email))
+      .limit(1);
+      
+    if (existingEmail) {
+      throw new Error("EMAIL_EXISTS");
+    }
+  }
+
+  // Insert user and driver in a transaction
+  const result = await db.transaction(async (tx) => {
+    const [newUser] = await tx
+      .insert(users)
+      .values({
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        role: "delivery_partner",
+        isActive: true,
+      })
+      .returning();
+
+    const [newDriver] = await tx
+      .insert(deliveryPartners)
+      .values({
+        userId: newUser.id,
+        storeId: input.storeId ?? null,
+        vehicleType: input.vehicleType ?? "motorcycle",
+        vehicleNumber: input.vehicleNumber ?? null,
+        status: "offline",
+        onboardingStatus: "pending",
+      })
+      .returning();
+
+    return newDriver;
+  });
+
+  return result.id;
 }

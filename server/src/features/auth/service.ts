@@ -1,9 +1,9 @@
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, ne } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { users, sessions, deliveryPartners } from "../../db/schema.ts";
 import { redis } from "../../redis/index.ts";
 import { getPresignedUrl } from "../upload/s3.ts";
-import type { AdminLoginInput, AdminSignupInput, AuthResult } from "./types.ts";
+import type { AdminLoginInput, AdminSignupInput, AuthResult, UpdateProfileInput } from "./types.ts";
 
 const SESSION_DURATION_DEFAULT = 60 * 60 * 24 * 7; // 7 days in seconds
 const SESSION_DURATION_REMEMBER = 60 * 60 * 24 * 30; // 30 days
@@ -135,16 +135,15 @@ export async function adminSignup(
 }
 
 export async function requestOtp(phone: string): Promise<void> {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = "123456"; // Fixed OTP to 1-6 for ease of development
   await redis.set(otpKey(phone), otp, "EX", OTP_TTL);
-  // In production: send SMS via Twilio/MSG91
   console.log(`[DEV OTP] phone: ${phone} code: ${otp}`);
 }
 
 export async function verifyOtp(
   phone: string,
   otp: string,
-  meta: { userAgent?: string; ipAddress?: string }
+  meta: { userAgent?: string; ipAddress?: string; role?: "delivery_partner" | "customer" }
 ): Promise<AuthResult> {
   const stored = await redis.get(otpKey(phone));
 
@@ -154,7 +153,7 @@ export async function verifyOtp(
   // Delete OTP after use
   await redis.del(otpKey(phone));
 
-  // Find delivery partner by phone
+  // Find delivery partner/customer by phone
   let [user] = await db
     .select()
     .from(users)
@@ -162,30 +161,47 @@ export async function verifyOtp(
     .limit(1);
 
   if (!user) {
-    // Auto-register new driver user and partner record
+    const targetRole = meta.role ?? "delivery_partner";
     const phoneSuffix = phone.substring(phone.length - 4);
-    const driverName = `Driver ${phoneSuffix}`;
-    user = await db.transaction(async (tx) => {
-      const [newUser] = await tx
-        .insert(users)
-        .values({
-          name: driverName,
-          phone,
-          role: "delivery_partner",
-          isActive: true,
-        })
-        .returning();
+    if (targetRole === "customer") {
+      const customerName = `Customer ${phoneSuffix}`;
+      user = await db.transaction(async (tx) => {
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            name: customerName,
+            phone,
+            role: "customer",
+            isActive: true,
+          })
+          .returning();
+        return newUser;
+      });
+    } else {
+      // Auto-register new driver user and partner record
+      const driverName = `Driver ${phoneSuffix}`;
+      user = await db.transaction(async (tx) => {
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            name: driverName,
+            phone,
+            role: "delivery_partner",
+            isActive: true,
+          })
+          .returning();
 
-      await tx
-        .insert(deliveryPartners)
-        .values({
-          userId: newUser.id,
-          status: "offline",
-          onboardingStatus: "pending",
-        });
+        await tx
+          .insert(deliveryPartners)
+          .values({
+            userId: newUser.id,
+            status: "offline",
+            onboardingStatus: "pending",
+          });
 
-      return newUser;
-    });
+        return newUser;
+      });
+    }
   }
 
   if (!user.isActive) throw new Error("ACCOUNT_INACTIVE");
@@ -286,4 +302,102 @@ export async function getMe(sessionId: string): Promise<AuthResult["user"] | nul
 
 export async function logout(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
+}
+
+export async function updateProfile(
+  userId: string,
+  input: UpdateProfileInput
+): Promise<AuthResult["user"]> {
+  if (input.email) {
+    const emailLower = input.email.trim().toLowerCase();
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.email, emailLower), ne(users.id, userId)))
+      .limit(1);
+
+    if (existing) {
+      throw new Error("DUPLICATE_EMAIL");
+    }
+  }
+
+  if (input.phone) {
+    const phoneTrimmed = input.phone.trim();
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.phone, phoneTrimmed), ne(users.id, userId)))
+      .limit(1);
+
+    if (existing) {
+      throw new Error("DUPLICATE_PHONE");
+    }
+  }
+
+  const updateData: { name?: string; email?: string | null; phone?: string | null; passwordHash?: string } = {};
+  if (input.name !== undefined) {
+    updateData.name = input.name ? input.name.trim() : "";
+  }
+  if (input.email !== undefined) {
+    updateData.email = input.email ? input.email.trim().toLowerCase() : null;
+  }
+  if (input.phone !== undefined) {
+    updateData.phone = input.phone ? input.phone.trim() : null;
+  }
+  if (input.password !== undefined && input.password && input.password.trim() !== "") {
+    updateData.passwordHash = await Bun.password.hash(input.password, { algorithm: "bcrypt", cost: 10 });
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("USER_NOT_FOUND");
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isActive: user.isActive,
+    };
+  }
+
+  const [updatedUser] = await db
+    .update(users)
+    .set(updateData)
+    .where(eq(users.id, userId))
+    .returning();
+
+  if (!updatedUser) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  let driverProfile = null;
+  if (updatedUser.role === "delivery_partner") {
+    const [driver] = await db
+      .select()
+      .from(deliveryPartners)
+      .where(eq(deliveryPartners.userId, updatedUser.id))
+      .limit(1);
+
+    if (driver) {
+      driverProfile = {
+        ...driver,
+        licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
+        licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
+        vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
+        identityProofImage: driver.identityProofImage ? await getPresignedUrl(driver.identityProofImage) : null,
+        profilePictureUrl: driver.profilePictureUrl ? await getPresignedUrl(driver.profilePictureUrl) : null,
+      };
+    }
+  }
+
+  return {
+    id: updatedUser.id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    phone: updatedUser.phone,
+    role: updatedUser.role,
+    isActive: updatedUser.isActive,
+    driverProfile,
+  };
 }

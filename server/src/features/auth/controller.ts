@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import * as authService from "./service.ts";
-import { adminLoginSchema, adminSignupSchema, otpRequestSchema, otpVerifySchema } from "./types.ts";
+import { adminLoginSchema, adminSignupSchema, otpRequestSchema, otpVerifySchema, updateProfileSchema } from "./types.ts";
 
 const COOKIE_NAME = "logiroute_session";
 const COOKIE_OPTIONS = {
@@ -94,6 +94,7 @@ export async function otpVerify(c: Context) {
     const result = await authService.verifyOtp(parsed.data.phone, parsed.data.otp, {
       userAgent: c.req.header("user-agent"),
       ipAddress: c.req.header("x-forwarded-for") ?? undefined,
+      role: parsed.data.role,
     });
 
     setCookie(c, COOKIE_NAME, result.sessionId, {
@@ -141,6 +142,31 @@ export async function logout(c: Context) {
     return c.json({ message: "Logged out successfully" }, 200);
   } catch (err) {
     console.error("[logout] error:", err);
+    return c.json({ error: "Internal server error" }, 500);
+  }
+}
+
+export async function updateProfile(c: Context) {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    const body = await c.req.json();
+    const parsed = updateProfileSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "VALIDATION_ERROR", details: parsed.error.flatten() }, 400);
+    }
+
+    const updatedUser = await authService.updateProfile(user.id, parsed.data);
+    return c.json({ user: updatedUser }, 200);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "UNKNOWN";
+    if (msg === "DUPLICATE_EMAIL") return c.json({ error: "An account with this email already exists" }, 409);
+    if (msg === "DUPLICATE_PHONE") return c.json({ error: "An account with this phone number already exists" }, 409);
+    if (msg === "USER_NOT_FOUND") return c.json({ error: "User not found" }, 404);
+    console.error("[updateProfile] error:", err);
     return c.json({ error: "Internal server error" }, 500);
   }
 }

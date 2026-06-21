@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import * as service from "./service.ts";
-import { onboardDriverSchema, rejectDriverSchema } from "./types.ts";
+import { onboardDriverSchema, rejectDriverSchema, createDriverSchema } from "./types.ts";
 
 export async function onboardMe(c: Context) {
   try {
@@ -93,5 +93,27 @@ export async function rejectDriver(c: Context) {
       return c.json({ error: "NOT_FOUND", message: "Driver not found" }, 404);
     }
     return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to reject driver" }, 500);
+  }
+}
+
+export async function createDriver(c: Context) {
+  try {
+    const body = await c.req.json();
+    const parsed = createDriverSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "VALIDATION_ERROR", details: parsed.error.flatten() }, 400);
+    }
+
+    const id = await service.createDriver(parsed.data);
+    return c.json({ success: true, message: "Driver created successfully", id }, 201);
+  } catch (err: any) {
+    console.error("[createDriver] error:", err);
+    if (err.message === "PHONE_EXISTS") {
+      return c.json({ error: "CONFLICT", message: "A driver with this phone number already exists" }, 409);
+    }
+    if (err.message === "EMAIL_EXISTS") {
+      return c.json({ error: "CONFLICT", message: "A driver with this email address already exists" }, 409);
+    }
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to manually create driver" }, 500);
   }
 }

@@ -19,6 +19,12 @@ deliveryPartnersRouter.get(
 );
 
 deliveryPartnersRouter.post(
+  "/",
+  requireAuth(["super_admin", "store_manager", "dispatcher"]),
+  controller.createDriver
+);
+
+deliveryPartnersRouter.post(
   "/:id/approve",
   requireAuth(["super_admin", "store_manager", "dispatcher"]),
   controller.approveDriver

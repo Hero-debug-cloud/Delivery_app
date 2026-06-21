@@ -110,11 +110,11 @@ async function main() {
       console.log(`Found ${categoriesList.length} existing categories.`);
     }
 
-    // 4. Products Setup
-    console.log("Checking and seeding products...");
-    const existingProductsCount = await db.select().from(products).limit(1);
+    // Delete existing products to ensure re-seeding picks up the new columns
+    console.log("Cleaning up existing products...");
+    await db.delete(products);
 
-    if (existingProductsCount.length === 0) {
+    if (true) {
       console.log("Inserting demo products...");
       const productsData = [];
 
@@ -133,6 +133,15 @@ async function main() {
             price: 5000, // ₹50.00
             unitSize: "1 kg (approx 6-8 pcs)",
             imageUrl: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400&auto=format&fit=crop&q=60",
+              "https://images.unsplash.com/photo-1543218024-57a70143c369?w=400&auto=format&fit=crop&q=60",
+              "https://images.unsplash.com/photo-1481349518771-20055b2a7b24?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Fresho",
+            shelfLife: "3-5 Days",
+            origin: "India",
+            ingredients: "Fresh Bananas",
             isFeatured: true,
             isVeg: true,
             inStock: true
@@ -146,6 +155,13 @@ async function main() {
             price: 18000, // ₹180.00
             unitSize: "1 kg (approx 4-5 pcs)",
             imageUrl: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Fresho",
+            shelfLife: "7 Days",
+            origin: "India",
+            ingredients: "Fresh Royal Gala Apples",
             isFeatured: false,
             isVeg: true,
             inStock: true
@@ -164,6 +180,14 @@ async function main() {
             price: 3200, // ₹32.00
             unitSize: "500 ml",
             imageUrl: "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&auto=format&fit=crop&q=60",
+              "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Nandini",
+            shelfLife: "2 Days",
+            origin: "India",
+            ingredients: "Milk Fat, Milk Solids",
             isFeatured: true,
             isVeg: true,
             inStock: true
@@ -177,6 +201,13 @@ async function main() {
             price: 10500, // ₹105.00
             unitSize: "100 g",
             imageUrl: "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Amul",
+            shelfLife: "9 Months",
+            origin: "India",
+            ingredients: "Milk Fat, Salt, Annatto Color",
             isFeatured: false,
             isVeg: true,
             inStock: true
@@ -195,6 +226,13 @@ async function main() {
             price: 4500, // ₹45.00
             unitSize: "400 g",
             imageUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Modern Bakery",
+            shelfLife: "5 Days",
+            origin: "India",
+            ingredients: "Whole Wheat Flour, Yeast, Water, Sugar, Salt",
             isFeatured: false,
             isVeg: true,
             inStock: true
@@ -213,6 +251,14 @@ async function main() {
             price: 4000, // ₹40.00
             unitSize: "750 ml",
             imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&auto=format&fit=crop&q=60",
+              "https://images.unsplash.com/photo-1554866585-cd94860890b7?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Coca-Cola",
+            shelfLife: "6 Months",
+            origin: "India",
+            ingredients: "Carbonated Water, Sugar, Acidity Regulators, Caffeine, Color",
             isFeatured: true,
             isVeg: true,
             inStock: true
@@ -231,6 +277,13 @@ async function main() {
             price: 2000, // ₹20.00
             unitSize: "50 g",
             imageUrl: "https://images.unsplash.com/photo-1566478989037-eec170784d20?w=400&auto=format&fit=crop&q=60",
+            images: [
+              "https://images.unsplash.com/photo-1566478989037-eec170784d20?w=400&auto=format&fit=crop&q=60"
+            ],
+            brand: "Lay's",
+            shelfLife: "4 Months",
+            origin: "India",
+            ingredients: "Potato, Edible Vegetable Oil, Salt",
             isFeatured: false,
             isVeg: true,
             inStock: true

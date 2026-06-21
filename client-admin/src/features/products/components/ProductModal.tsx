@@ -3,7 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X } from "lucide-react";
-import { ImageUploadField } from "@/features/upload/components/ImageUploadField";
+import { MultiImageUploadField } from "@/features/upload/components/MultiImageUploadField";
 import { InfiniteSelect } from "@/components/shared/InfiniteSelect";
 import { useInfiniteCategories, useInfiniteStores } from "../hooks/useProducts";
 import type { Product } from "../types";
@@ -16,6 +16,11 @@ const productFormSchema = z.object({
   unitSize: z.string().min(1, "Unit size is required (e.g., 500 g, 1 kg, 1 unit)"),
   categoryId: z.string().uuid("Please select a category").optional().nullable(),
   imageUrl: z.string().optional().nullable(),
+  images: z.array(z.string()).default([]),
+  brand: z.string().optional().nullable(),
+  shelfLife: z.string().optional().nullable(),
+  origin: z.string().optional().nullable(),
+  ingredients: z.string().optional().nullable(),
   isFeatured: z.boolean().default(false),
   isVeg: z.boolean().default(true),
   inStock: z.boolean().default(true),
@@ -38,7 +43,7 @@ export function ProductModal({
   product,
   isSaving,
 }: ProductModalProps) {
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagesPreviews, setImagesPreviews] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Use infinite scrolling hooks instead of static fetchers
@@ -76,6 +81,11 @@ export function ProductModal({
       unitSize: "",
       categoryId: "",
       imageUrl: "",
+      images: [],
+      brand: "",
+      shelfLife: "",
+      origin: "",
+      ingredients: "",
       isFeatured: false,
       isVeg: true,
       inStock: true,
@@ -95,11 +105,16 @@ export function ProductModal({
         unitSize: product.unitSize || "",
         categoryId: product.categoryId || "",
         imageUrl: product.imageUrl || "",
+        images: product.images || [],
+        brand: product.brand || "",
+        shelfLife: product.shelfLife || "",
+        origin: product.origin || "",
+        ingredients: product.ingredients || "",
         isFeatured: product.isFeatured,
         isVeg: product.isVeg,
         inStock: product.inStock,
       });
-      setImagePreview(product.imageUrl || null);
+      setImagesPreviews(product.images || (product.imageUrl ? [product.imageUrl] : []));
     } else {
       reset({
         storeId: firstStoreId || "",
@@ -109,11 +124,16 @@ export function ProductModal({
         unitSize: "",
         categoryId: "",
         imageUrl: "",
+        images: [],
+        brand: "",
+        shelfLife: "",
+        origin: "",
+        ingredients: "",
         isFeatured: false,
         isVeg: true,
         inStock: true,
       });
-      setImagePreview(null);
+      setImagesPreviews([]);
     }
     setSubmitError(null);
   }, [product, reset, isOpen, firstStoreId]);
@@ -127,6 +147,10 @@ export function ProductModal({
         ...values,
         price: Math.round(values.price * 100),
         categoryId: values.categoryId || null,
+        brand: values.brand || null,
+        shelfLife: values.shelfLife || null,
+        origin: values.origin || null,
+        ingredients: values.ingredients || null,
       };
       await onSave(apiPayload);
       onClose();
@@ -136,9 +160,10 @@ export function ProductModal({
     }
   };
 
-  const handleImageChange = (key: string | null, url: string | null) => {
-    setValue("imageUrl", key || "");
-    setImagePreview(url);
+  const handleImagesChange = (keys: string[], urls: string[]) => {
+    setValue("images", keys);
+    setImagesPreviews(urls);
+    setValue("imageUrl", keys.length > 0 ? keys[0] : "");
   };
 
   return (
@@ -275,6 +300,50 @@ export function ProductModal({
             />
           </div>
 
+          {/* Brand & Shelf Life */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-neutral-700">Brand</label>
+              <input
+                type="text"
+                placeholder="e.g. Amul, Coca-Cola"
+                {...register("brand")}
+                className="px-3 py-2 border border-neutral-200 rounded-md text-[14px] bg-white focus:outline-none focus:border-primary-600 transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-neutral-700">Shelf Life</label>
+              <input
+                type="text"
+                placeholder="e.g. 9 Months, 7 Days"
+                {...register("shelfLife")}
+                className="px-3 py-2 border border-neutral-200 rounded-md text-[14px] bg-white focus:outline-none focus:border-primary-600 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Origin & Ingredients */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-neutral-700">Country of Origin</label>
+              <input
+                type="text"
+                placeholder="e.g. India, USA"
+                {...register("origin")}
+                className="px-3 py-2 border border-neutral-200 rounded-md text-[14px] bg-white focus:outline-none focus:border-primary-600 transition-all"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[13px] font-semibold text-neutral-700">Ingredients</label>
+              <input
+                type="text"
+                placeholder="e.g. Milk Fat, Salt"
+                {...register("ingredients")}
+                className="px-3 py-2 border border-neutral-200 rounded-md text-[14px] bg-white focus:outline-none focus:border-primary-600 transition-all"
+              />
+            </div>
+          </div>
+
           {/* Description */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[13px] font-semibold text-neutral-700">Description</label>
@@ -286,13 +355,22 @@ export function ProductModal({
             />
           </div>
 
-          {/* Image Upload Field */}
-          <ImageUploadField
-            label="Product Image"
-            value={watchedImageUrl}
-            previewUrl={imagePreview}
-            onChange={handleImageChange}
-            error={errors.imageUrl?.message}
+          {/* Multi Image Upload Field */}
+          <Controller
+            control={control}
+            name="images"
+            render={({ field }) => (
+              <MultiImageUploadField
+                label="Product Images (Up to 5)"
+                values={field.value || []}
+                previewUrls={imagesPreviews}
+                onChange={(keys, urls) => {
+                  field.onChange(keys);
+                  handleImagesChange(keys, urls);
+                }}
+                error={errors.images?.message}
+              />
+            )}
           />
 
           {/* Options grid */}

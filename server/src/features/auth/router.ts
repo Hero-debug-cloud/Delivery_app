@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import * as authController from "./controller.ts";
+import { requireAuth } from "./middleware.ts";
 
 export const authRouter = new Hono();
 
@@ -14,3 +15,4 @@ authRouter.post("/otp/verify", authController.otpVerify);
 // Session management
 authRouter.get("/me", authController.getMe);
 authRouter.post("/logout", authController.logout);
+authRouter.patch("/me", requireAuth(), authController.updateProfile);

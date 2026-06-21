@@ -58,6 +58,7 @@ class AuthUser {
   final String id;
   final String name;
   final String? phone;
+  final String? email;
   final String role;
   final DriverProfile? driverProfile;
 
@@ -65,6 +66,7 @@ class AuthUser {
     required this.id,
     required this.name,
     this.phone,
+    this.email,
     required this.role,
     this.driverProfile,
   });
@@ -74,6 +76,7 @@ class AuthUser {
       id: json['id'] as String,
       name: json['name'] as String,
       phone: json['phone'] as String?,
+      email: json['email'] as String?,
       role: json['role'] as String,
       driverProfile: json['driverProfile'] != null
           ? DriverProfile.fromJson(json['driverProfile'] as Map<String, dynamic>)

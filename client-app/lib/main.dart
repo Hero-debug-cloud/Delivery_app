@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+
 import 'core/theme.dart';
 import 'features/auth/data/sources/auth_remote_source.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
@@ -10,6 +12,25 @@ import 'features/auth/presentation/bloc/auth_cubit.dart';
 import 'features/auth/presentation/bloc/auth_state.dart';
 import 'features/auth/presentation/screens/phone_input_screen.dart';
 import 'features/auth/presentation/screens/otp_verify_screen.dart';
+
+import 'features/products/data/sources/product_remote_source.dart';
+import 'features/products/data/repositories/product_repository.dart';
+import 'features/products/presentation/bloc/product_cubit.dart';
+import 'features/products/presentation/screens/customer_home_screen.dart';
+import 'features/products/presentation/screens/product_search_screen.dart';
+import 'features/products/presentation/screens/product_detail_screen.dart';
+import 'features/products/presentation/screens/customer_profile_screen.dart';
+
+import 'features/cart/presentation/bloc/cart_cubit.dart';
+import 'features/cart/presentation/screens/cart_screen.dart';
+
+import 'features/addresses/data/sources/address_remote_source.dart';
+import 'features/addresses/data/repositories/address_repository.dart';
+import 'features/addresses/presentation/bloc/address_cubit.dart';
+import 'features/addresses/domain/models/customer_address.dart';
+import 'features/addresses/presentation/screens/saved_addresses_screen.dart';
+import 'features/addresses/presentation/screens/add_edit_address_screen.dart';
+
 import 'screens/dashboard.dart';
 import 'screens/order_detail.dart';
 import 'screens/active_delivery.dart';
@@ -23,10 +44,14 @@ void main() {
 }
 
 class CookieInterceptor extends Interceptor {
+  final FlutterSecureStorage _secureStorage;
   String? _cookie;
 
+  CookieInterceptor(this._secureStorage);
+
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+  Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    _cookie = await _secureStorage.read(key: 'session_cookie');
     if (_cookie != null) {
       options.headers['Cookie'] = _cookie;
     }
@@ -34,12 +59,14 @@ class CookieInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
+  Future<void> onResponse(Response response, ResponseInterceptorHandler handler) async {
     final rawCookies = response.headers['set-cookie'];
     if (rawCookies != null && rawCookies.isNotEmpty) {
       for (final rawCookie in rawCookies) {
         if (rawCookie.startsWith('logiroute_session=')) {
-          _cookie = rawCookie.split(';').first;
+          final cookie = rawCookie.split(';').first;
+          _cookie = cookie;
+          await _secureStorage.write(key: 'session_cookie', value: cookie);
           break;
         }
       }
@@ -58,7 +85,7 @@ class LogiRouteApp extends StatelessWidget {
       receiveTimeout: const Duration(seconds: 10),
       headers: {'Content-Type': 'application/json'},
     ),
-  )..interceptors.add(CookieInterceptor());
+  )..interceptors.add(CookieInterceptor(_secureStorage));
 
   static const _secureStorage = FlutterSecureStorage();
   static final _authRemoteSource = AuthRemoteSource(dio);
@@ -67,43 +94,92 @@ class LogiRouteApp extends StatelessWidget {
     _secureStorage,
   );
 
+  static final _productRemoteSource = ProductRemoteSource(dio);
+  static final _productRepository = ProductRepository(_productRemoteSource);
+
+  static final _addressRemoteSource = AddressRemoteSource(dio);
+  static final _addressRepository = AddressRepository(_addressRemoteSource);
+
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AuthCubit>(
-      create: (_) => AuthCubit(_authRepository)..checkAuth(),
-      child: BlocBuilder<AuthCubit, AuthState>(
-        builder: (context, state) {
-          return MaterialApp.router(
-            title: 'LogiRoute Mobile',
-            debugShowCheckedModeBanner: false,
-            routerConfig: _buildRouter(context, state),
-            theme: AppTheme.lightTheme,
-          );
-        },
-      ),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthCubit>(
+          create: (_) => AuthCubit(_authRepository)..checkAuth(),
+        ),
+        BlocProvider<ProductCubit>(
+          create: (_) => ProductCubit(_productRepository),
+        ),
+        BlocProvider<CartCubit>(
+          create: (_) => CartCubit(),
+        ),
+        BlocProvider<AddressCubit>(
+          create: (_) => AddressCubit(_addressRepository),
+        ),
+      ],
+      child: const LogiRouteAppRouter(),
     );
   }
+}
 
-  GoRouter _buildRouter(BuildContext context, AuthState state) {
-    final isAuthenticated = state is AuthAuthenticated;
+class LogiRouteAppRouter extends StatefulWidget {
+  const LogiRouteAppRouter({super.key});
 
+  @override
+  State<LogiRouteAppRouter> createState() => _LogiRouteAppRouterState();
+}
+
+class _LogiRouteAppRouterState extends State<LogiRouteAppRouter> {
+  late final GoRouter _router;
+  late final GoRouterRefreshStream _refreshStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final authCubit = context.read<AuthCubit>();
+    _refreshStream = GoRouterRefreshStream(authCubit.stream);
+    _router = _buildRouter(authCubit);
+  }
+
+  @override
+  void dispose() {
+    _refreshStream.dispose();
+    super.dispose();
+  }
+
+  GoRouter _buildRouter(AuthCubit authCubit) {
     return GoRouter(
-      initialLocation: isAuthenticated ? '/dashboard' : '/login',
+      initialLocation: '/login',
+      refreshListenable: _refreshStream,
       redirect: (ctx, routerState) {
-        final authCubit = context.read<AuthCubit>();
         final authState = authCubit.state;
-        final authed = authState is AuthAuthenticated;
         final goingToAuth =
             routerState.matchedLocation == '/login' ||
             routerState.matchedLocation == '/otp-verify';
 
-        if (!authed) {
+        if (authState is! AuthAuthenticated) {
           if (!goingToAuth) return '/login';
           return null;
         }
 
-        // Check onboarding status
-        final user = (authState as AuthAuthenticated).user;
+        final user = authState.user;
+
+        // Customer Redirection
+        if (user.role == 'customer') {
+          final isDriverOrAuthScreen =
+              routerState.matchedLocation == '/login' ||
+              routerState.matchedLocation == '/otp-verify' ||
+              routerState.matchedLocation == '/onboarding' ||
+              routerState.matchedLocation == '/onboarding-review' ||
+              routerState.matchedLocation == '/dashboard' ||
+              routerState.matchedLocation.startsWith('/delivery') ||
+              routerState.matchedLocation.startsWith('/orders');
+          
+          if (isDriverOrAuthScreen) return '/home';
+          return null;
+        }
+
+        // Driver Redirection
         final onboardingStatus = user.driverProfile?.onboardingStatus ?? 'pending';
 
         if (onboardingStatus == 'pending' || onboardingStatus == 'rejected') {
@@ -121,7 +197,12 @@ class LogiRouteApp extends StatelessWidget {
               routerState.matchedLocation == '/login' ||
               routerState.matchedLocation == '/otp-verify' ||
               routerState.matchedLocation == '/onboarding' ||
-              routerState.matchedLocation == '/onboarding-review';
+              routerState.matchedLocation == '/onboarding-review' ||
+              routerState.matchedLocation == '/home' ||
+              routerState.matchedLocation == '/customer-profile' ||
+              routerState.matchedLocation == '/search' ||
+              routerState.matchedLocation.startsWith('/products');
+          
           if (isRestrictedScreen) return '/dashboard';
           return null;
         }
@@ -136,8 +217,16 @@ class LogiRouteApp extends StatelessWidget {
         GoRoute(
           path: '/otp-verify',
           builder: (ctx, state) {
-            final phone = state.extra as String? ?? '';
-            return OtpVerifyScreen(phone: phone);
+            final extra = state.extra;
+            String phone = '';
+            String role = 'delivery_partner';
+            if (extra is String) {
+              phone = extra;
+            } else if (extra is Map<String, dynamic>) {
+              phone = extra['phone'] as String? ?? '';
+              role = extra['role'] as String? ?? 'delivery_partner';
+            }
+            return OtpVerifyScreen(phone: phone, role: role);
           },
         ),
         GoRoute(
@@ -177,7 +266,72 @@ class LogiRouteApp extends StatelessWidget {
             return PinEntryScreen(orderId: orderId);
           },
         ),
+        // Customer Routes
+        GoRoute(
+          path: '/home',
+          builder: (ctx, state) => const CustomerHomeScreen(),
+        ),
+        GoRoute(
+          path: '/search',
+          builder: (ctx, state) => const ProductSearchScreen(),
+        ),
+        GoRoute(
+          path: '/products/:id',
+          builder: (ctx, state) {
+            final id = state.pathParameters['id'] ?? '';
+            return ProductDetailScreen(productId: id);
+          },
+        ),
+        GoRoute(
+          path: '/customer-profile',
+          builder: (ctx, state) => const CustomerProfileScreen(),
+        ),
+        GoRoute(
+          path: '/cart',
+          builder: (ctx, state) => const CartScreen(),
+        ),
+        GoRoute(
+          path: '/saved-addresses',
+          builder: (ctx, state) => const SavedAddressesScreen(),
+        ),
+        GoRoute(
+          path: '/add-edit-address',
+          builder: (ctx, state) {
+            final extra = state.extra;
+            if (extra is CustomerAddress) {
+              return AddEditAddressScreen(addressToEdit: extra);
+            }
+            return const AddEditAddressScreen();
+          },
+        ),
       ],
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp.router(
+      title: 'LogiRoute Mobile',
+      debugShowCheckedModeBanner: false,
+      routerConfig: _router,
+      theme: AppTheme.lightTheme,
+    );
+  }
+}
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  late final StreamSubscription<dynamic> _subscription;
+
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+          (dynamic _) => notifyListeners(),
+        );
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }

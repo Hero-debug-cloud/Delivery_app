@@ -3,12 +3,22 @@
 import React from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, AlertCircle, MapPin } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useLogin } from '../hooks/useLogin';
+import { useAuthStore } from '../store';
 
 export function LoginForm() {
   const { form, onSubmit, isLoading, error } = useLogin();
   const { register, formState: { errors }, watch } = form;
   const [showPassword, setShowPassword] = React.useState(false);
+  const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, router]);
 
   return (
     <div className="flex h-screen w-screen bg-neutral-50 font-sans text-neutral-950">

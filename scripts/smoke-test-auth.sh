@@ -218,6 +218,82 @@ else
 fi
 
 # -----------------------------------------------------------
+# 11b. PATCH /auth/me — Profile Update
+# -----------------------------------------------------------
+log_section "11b. PATCH /auth/me — Profile Update"
+
+# Try updating profile name, phone, and password
+NEW_NAME="Updated Admin Name"
+NEW_PHONE="+918888888888"
+RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" \
+  -X PATCH "${BASE_URL}/auth/me" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"$NEW_NAME\",\"phone\":\"$NEW_PHONE\",\"password\":\"NewAdminPassword@123\"}")
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+
+if [ "$HTTP_CODE" = "200" ]; then
+  log_pass "PATCH /auth/me with valid name, phone, and password → 200"
+  UPDATED_NAME=$(echo "$BODY" | grep -o '"name":"[^"]*"' | cut -d'"' -f4)
+  UPDATED_PHONE=$(echo "$BODY" | grep -o '"phone":"[^"]*"' | cut -d'"' -f4)
+  if [ "$UPDATED_NAME" = "$NEW_NAME" ] && [ "$UPDATED_PHONE" = "$NEW_PHONE" ]; then
+    log_pass "Response contains updated name and phone"
+  else
+    log_fail "Response fields do not match updated fields" "$BODY"
+  fi
+else
+  log_fail "PATCH /auth/me should return 200" "HTTP $HTTP_CODE — $BODY"
+fi
+
+# Try logging in with the new password
+log_section "11c. Admin Login — With Updated Password"
+RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "${BASE_URL}/auth/admin/login" \
+  -H "Content-Type: application/json" \
+  -d '{"identifier":"admin@gmail.com","password":"NewAdminPassword@123"}')
+if [ "$RESP" = "200" ]; then
+  log_pass "POST /auth/admin/login with new password → 200"
+else
+  log_fail "POST /auth/admin/login with new password should return 200" "HTTP $RESP"
+fi
+
+# Reset password back to original to keep smoke test idempotent
+RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" \
+  -X PATCH "${BASE_URL}/auth/me" \
+  -H "Content-Type: application/json" \
+  -d '{"password":"Admin@1234"}')
+HTTP_CODE=$(echo "$RESP" | tail -n1)
+BODY=$(echo "$RESP" | sed '$d')
+if [ "$HTTP_CODE" = "200" ]; then
+  log_pass "PATCH /auth/me reverted password back to original → 200"
+else
+  log_fail "PATCH /auth/me revert password should return 200" "HTTP $HTTP_CODE — $BODY"
+fi
+
+# Try invalid email validation
+RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+  -b "$COOKIE_JAR" \
+  -X PATCH "${BASE_URL}/auth/me" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"invalid-email"}')
+if [ "$RESP" = "400" ]; then
+  log_pass "PATCH /auth/me with invalid email format → 400"
+else
+  log_fail "PATCH /auth/me with invalid email should return 400" "HTTP $RESP"
+fi
+
+# Try unauthenticated profile update
+RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X PATCH "${BASE_URL}/auth/me" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Unauth Updated"}')
+if [ "$RESP" = "401" ]; then
+  log_pass "PATCH /auth/me without session → 401"
+else
+  log_fail "PATCH /auth/me without session should return 401" "HTTP $RESP"
+fi
+
+# -----------------------------------------------------------
 # 12. Logout — Valid Session
 # -----------------------------------------------------------
 log_section "12. Logout — Valid Session"

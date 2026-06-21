@@ -192,6 +192,11 @@ export async function getProducts(filters: GetProductsFilters) {
       categoryId: products.categoryId,
       categoryName: productCategories.name,
       imageUrl: products.imageUrl,
+      images: products.images,
+      brand: products.brand,
+      shelfLife: products.shelfLife,
+      origin: products.origin,
+      ingredients: products.ingredients,
       isFeatured: products.isFeatured,
       isVeg: products.isVeg,
       inStock: products.inStock,
@@ -227,10 +232,17 @@ export async function getProducts(filters: GetProductsFilters) {
   const list = await query;
 
   const signedList = await Promise.all(
-    list.map(async (p) => ({
-      ...p,
-      imageUrl: await getPresignedUrl(p.imageUrl),
-    }))
+    list.map(async (p) => {
+      const imageUrl = await getPresignedUrl(p.imageUrl);
+      const images = p.images && Array.isArray(p.images) && p.images.length > 0
+        ? await Promise.all(p.images.map(img => getPresignedUrl(img)))
+        : (imageUrl ? [imageUrl] : []);
+      return {
+        ...p,
+        imageUrl,
+        images: images.filter((img): img is string => img !== null),
+      };
+    })
   );
 
   return { list: signedList, totalItems };
@@ -250,6 +262,11 @@ export async function getProductById(id: string) {
       categoryId: products.categoryId,
       categoryName: productCategories.name,
       imageUrl: products.imageUrl,
+      images: products.images,
+      brand: products.brand,
+      shelfLife: products.shelfLife,
+      origin: products.origin,
+      ingredients: products.ingredients,
       isFeatured: products.isFeatured,
       isVeg: products.isVeg,
       inStock: products.inStock,
@@ -264,9 +281,15 @@ export async function getProductById(id: string) {
 
   if (!product) return null;
 
+  const imageUrl = await getPresignedUrl(product.imageUrl);
+  const images = product.images && Array.isArray(product.images) && product.images.length > 0
+    ? await Promise.all(product.images.map(img => getPresignedUrl(img)))
+    : (imageUrl ? [imageUrl] : []);
+
   return {
     ...product,
-    imageUrl: await getPresignedUrl(product.imageUrl),
+    imageUrl,
+    images: images.filter((img): img is string => img !== null),
   };
 }
 
@@ -283,6 +306,17 @@ export async function createProduct(input: CreateProductInput) {
     }
   }
 
+  let imageKeys: string[] = [];
+  if (input.images && Array.isArray(input.images)) {
+    imageKeys = input.images
+      .map(img => extractS3Key(img))
+      .filter((img): img is string => img !== null);
+  }
+  const imageUrlKey = imageKeys.length > 0 ? imageKeys[0] : (input.imageUrl ? extractS3Key(input.imageUrl) : null);
+  if (imageKeys.length === 0 && imageUrlKey) {
+    imageKeys = [imageUrlKey];
+  }
+
   const [product] = await db
     .insert(products)
     .values({
@@ -293,7 +327,12 @@ export async function createProduct(input: CreateProductInput) {
       unitSize: input.unitSize,
       category: categoryName,
       categoryId: input.categoryId ?? null,
-      imageUrl: input.imageUrl ? extractS3Key(input.imageUrl) : null,
+      imageUrl: imageUrlKey,
+      images: imageKeys,
+      brand: input.brand ?? null,
+      shelfLife: input.shelfLife ?? null,
+      origin: input.origin ?? null,
+      ingredients: input.ingredients ?? null,
       isFeatured: input.isFeatured ?? false,
       isVeg: input.isVeg ?? true,
       inStock: input.inStock ?? true,
@@ -320,13 +359,32 @@ export async function updateProduct(id: string, input: UpdateProductInput) {
     }
   }
 
+  let imageKeys: string[] | undefined = undefined;
+  if (input.images !== undefined) {
+    if (input.images === null) {
+      imageKeys = [];
+    } else if (Array.isArray(input.images)) {
+      imageKeys = input.images
+        .map(img => extractS3Key(img))
+        .filter((img): img is string => img !== null);
+    }
+  }
+
   const updateValues: any = {
     ...input,
     updatedAt: new Date(),
   };
 
-  if (input.imageUrl !== undefined) {
+  if (imageKeys !== undefined) {
+    updateValues.images = imageKeys;
+    updateValues.imageUrl = imageKeys.length > 0 ? imageKeys[0] : null;
+  } else if (input.imageUrl !== undefined) {
     updateValues.imageUrl = input.imageUrl ? extractS3Key(input.imageUrl) : null;
+    if (updateValues.imageUrl) {
+      updateValues.images = [updateValues.imageUrl];
+    } else {
+      updateValues.images = [];
+    }
   }
 
   if (categoryName !== undefined) {

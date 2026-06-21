@@ -8,7 +8,8 @@ import '../bloc/auth_state.dart';
 
 class OtpVerifyScreen extends StatefulWidget {
   final String phone;
-  const OtpVerifyScreen({super.key, required this.phone});
+  final String role;
+  const OtpVerifyScreen({super.key, required this.phone, required this.role});
 
   @override
   State<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
@@ -81,7 +82,7 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
 
   void _verify(AuthCubit cubit) {
     if (!_isComplete) return;
-    cubit.verifyOtp(widget.phone, _otp);
+    cubit.verifyOtp(widget.phone, _otp, role: widget.role);
   }
 
   void _resend(AuthCubit cubit) {
@@ -99,7 +100,8 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is AuthAuthenticated) {
-          context.go('/dashboard');
+          final target = state.user.role == 'customer' ? '/home' : '/dashboard';
+          context.go(target);
         }
       },
       builder: (context, state) {

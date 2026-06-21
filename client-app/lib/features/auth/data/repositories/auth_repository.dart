@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
 import '../sources/auth_remote_source.dart';
 import '../../domain/models/auth_user.dart';
 
@@ -17,8 +18,8 @@ class AuthRepository {
     await _remoteSource.requestOtp(phone);
   }
 
-  Future<AuthUser> verifyOtp(String phone, String otp) async {
-    final user = await _remoteSource.verifyOtp(phone, otp);
+  Future<AuthUser> verifyOtp(String phone, String otp, {String? role}) async {
+    final user = await _remoteSource.verifyOtp(phone, otp, role: role);
     // Store user info locally
     await _secureStorage.write(key: _userIdKey, value: user.id);
     await _secureStorage.write(key: _userRoleKey, value: user.role);
@@ -37,7 +38,12 @@ class AuthRepository {
       await _secureStorage.write(key: _userRoleKey, value: user.role);
       await _secureStorage.write(key: _userPhoneKey, value: user.phone);
       return user;
-    } catch (_) {
+    } catch (e) {
+      if (e is DioException && e.response?.statusCode == 401) {
+        // Session expired or invalid on server, clear local credentials
+        await _secureStorage.deleteAll();
+        return null;
+      }
       final name = await _secureStorage.read(key: _userNameKey) ?? '';
       final role = await _secureStorage.read(key: _userRoleKey) ?? '';
       final phone = await _secureStorage.read(key: _userPhoneKey);
@@ -48,5 +54,13 @@ class AuthRepository {
   Future<void> logout() async {
     await _remoteSource.logout();
     await _secureStorage.deleteAll();
+  }
+
+  Future<AuthUser> updateProfile({String? name, String? email}) async {
+    final user = await _remoteSource.updateProfile(name: name, email: email);
+    await _secureStorage.write(key: _userNameKey, value: user.name);
+    await _secureStorage.write(key: _userRoleKey, value: user.role);
+    await _secureStorage.write(key: _userPhoneKey, value: user.phone);
+    return user;
   }
 }

@@ -63,7 +63,7 @@ fi
 # 2. Get Stores (Extract store id to add product)
 # -----------------------------------------------------------
 log_section "2. Query Stores List"
-RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/stores")
+RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" "${BASE_URL}/stores")
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 
@@ -172,7 +172,7 @@ else
 fi
 
 # 4.3 Get Product List with Filter
-RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/products?storeId=${STORE_ID}")
+RESP=$(curl -s -w "\n%{http_code}" "${BASE_URL}/products?storeId=${STORE_ID}&limit=50")
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 

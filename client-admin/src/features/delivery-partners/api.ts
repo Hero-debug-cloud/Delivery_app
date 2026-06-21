@@ -1,4 +1,4 @@
-import type { DeliveryPartner, ApiResponse, PaginatedResponse, GetDriversParams } from "./types";
+import type { DeliveryPartner, ApiResponse, PaginatedResponse, GetDriversParams, CreateDriverInput } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -38,4 +38,14 @@ export async function apiRejectDriver(id: string, reason: string): Promise<ApiRe
     body: JSON.stringify({ reason }),
   });
   return handleResponse<ApiResponse<null>>(res);
+}
+
+export async function apiCreateDriver(data: CreateDriverInput): Promise<ApiResponse<{ id: string }>> {
+  const res = await fetch(`${API}/delivery-partners`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  });
+  return handleResponse<ApiResponse<{ id: string }>>(res);
 }
