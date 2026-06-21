@@ -6,6 +6,7 @@ import '../../../cart/presentation/bloc/cart_state.dart';
 import '../bloc/product_cubit.dart';
 import '../bloc/product_state.dart';
 import '../../domain/models/product.dart';
+import '../../../../core/network_utils.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -118,7 +119,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       return Padding(
                                         padding: const EdgeInsets.all(16),
                                         child: Image.network(
-                                          prod.images[index],
+                                          NetworkUtils.resolveUrl(prod.images[index]),
                                           fit: BoxFit.contain,
                                           errorBuilder: (_, __, ___) => const Icon(
                                             Icons.restaurant,

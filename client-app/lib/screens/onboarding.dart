@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import '../core/theme.dart';
+import '../core/network_utils.dart';
 import '../features/auth/presentation/bloc/auth_cubit.dart';
 import '../features/auth/presentation/bloc/auth_state.dart';
 import '../main.dart';
@@ -217,8 +218,8 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
                         ? ClipRRect(
                             borderRadius: AppRadius.borderRadiusSm,
                             child: preview.startsWith('http') || kIsWeb
-                                ? Image.network(preview, fit: BoxFit.cover)
-                                : Image.file(File(preview), fit: BoxFit.cover),
+                                ? Image.network(NetworkUtils.resolveUrl(preview), fit: BoxFit.contain)
+                                : Image.file(File(preview), fit: BoxFit.contain),
                           )
                         : const Center(
                             child: Column(

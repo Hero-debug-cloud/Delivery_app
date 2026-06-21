@@ -321,7 +321,7 @@ export function DriverVerificationModal({
                           <img 
                             src={doc.url} 
                             alt={doc.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+                            className="w-full h-full object-contain group-hover:scale-105 transition-all duration-300"
                           />
                           <div className="absolute inset-0 bg-neutral-900/0 group-hover:bg-neutral-900/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                             <span className="px-2.5 py-1.5 rounded-md bg-white/90 text-[11px] font-bold text-neutral-800 shadow">

@@ -1,7 +1,7 @@
 import { eq, and, or, like, desc, sql } from "drizzle-orm";
 import { db } from "../../db/index.ts";
 import { users, deliveryPartners } from "../../db/schema.ts";
-import { getPresignedUrl } from "../upload/s3.ts";
+import { getPresignedUrl, extractS3Key } from "../upload/s3.ts";
 import type { OnboardDriverInput, GetDriversFilters, CreateDriverInput } from "./types.ts";
 
 export async function onboardDriver(userId: string, input: OnboardDriverInput): Promise<void> {
@@ -32,13 +32,13 @@ export async function onboardDriver(userId: string, input: OnboardDriverInput): 
         vehicleNumber: input.vehicleNumber,
         licenseNumber: input.licenseNumber,
         licenseExpiry: input.licenseExpiry,
-        licenseFrontUrl: input.licenseFrontUrl,
-        licenseBackUrl: input.licenseBackUrl,
-        vehiclePlateImage: input.vehiclePlateImage,
+        licenseFrontUrl: extractS3Key(input.licenseFrontUrl),
+        licenseBackUrl: extractS3Key(input.licenseBackUrl),
+        vehiclePlateImage: extractS3Key(input.vehiclePlateImage),
         identityProofType: input.identityProofType,
         identityProofNumber: input.identityProofNumber,
-        identityProofImage: input.identityProofImage,
-        profilePictureUrl: input.profilePictureUrl,
+        identityProofImage: extractS3Key(input.identityProofImage),
+        profilePictureUrl: extractS3Key(input.profilePictureUrl),
         onboardingStatus: "submitted",
         rejectionReason: null, // Clear past rejection reason on resubmit
         updatedAt: new Date(),

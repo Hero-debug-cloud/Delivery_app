@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 
 import 'core/theme.dart';
+import 'core/network_utils.dart';
 import 'features/auth/data/sources/auth_remote_source.dart';
 import 'features/auth/data/repositories/auth_repository.dart';
 import 'features/auth/presentation/bloc/auth_cubit.dart';
@@ -80,7 +81,7 @@ class LogiRouteApp extends StatelessWidget {
 
   static final dio = Dio(
     BaseOptions(
-      baseUrl: 'http://localhost:8000',
+      baseUrl: NetworkUtils.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {'Content-Type': 'application/json'},

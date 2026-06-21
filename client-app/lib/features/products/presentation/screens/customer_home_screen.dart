@@ -8,6 +8,7 @@ import '../bloc/product_cubit.dart';
 import '../bloc/product_state.dart';
 import '../../domain/models/product.dart';
 import '../../domain/models/category.dart';
+import '../../../../core/network_utils.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -354,7 +355,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 padding: const EdgeInsets.all(8.0),
                 child: cat.imageUrl != null
                     ? Image.network(
-                        cat.imageUrl!,
+                        NetworkUtils.resolveUrl(cat.imageUrl!),
                         fit: BoxFit.contain,
                         errorBuilder: (_, __, ___) => const Icon(
                           Icons.grid_view_rounded,
@@ -415,7 +416,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     alignment: Alignment.center,
                     child: prod.imageUrl != null
                         ? Image.network(
-                            prod.imageUrl!,
+                            NetworkUtils.resolveUrl(prod.imageUrl!),
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.restaurant,
@@ -613,7 +614,7 @@ class _GridProductCard extends StatelessWidget {
                     alignment: Alignment.center,
                     child: prod.imageUrl != null
                         ? Image.network(
-                            prod.imageUrl!,
+                            NetworkUtils.resolveUrl(prod.imageUrl!),
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.restaurant,

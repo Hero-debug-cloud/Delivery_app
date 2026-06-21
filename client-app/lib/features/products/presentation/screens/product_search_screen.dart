@@ -8,6 +8,7 @@ import '../../../cart/presentation/widgets/bottom_cart_sheet.dart';
 import '../bloc/product_cubit.dart';
 import '../bloc/product_state.dart';
 import '../../domain/models/product.dart';
+import '../../../../core/network_utils.dart';
 
 class ProductSearchScreen extends StatefulWidget {
   const ProductSearchScreen({super.key});
@@ -194,7 +195,7 @@ class _SearchProductGridCard extends StatelessWidget {
                     alignment: Alignment.center,
                     child: prod.imageUrl != null
                         ? Image.network(
-                            prod.imageUrl!,
+                            NetworkUtils.resolveUrl(prod.imageUrl!),
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const Icon(
                               Icons.restaurant,
