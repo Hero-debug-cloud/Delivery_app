@@ -7,6 +7,8 @@ export const createStoreSchema = z.object({
   longitude: z.number().min(-180, "Longitude must be between -180 and 180").max(180, "Longitude must be between -180 and 180"),
   phone: z.string().min(1, "Contact phone is required"),
   isActive: z.boolean().optional().default(true),
+  openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Opening time must be in HH:MM format"),
+  closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Closing time must be in HH:MM format"),
 });
 
 export const updateStoreSchema = createStoreSchema.partial();

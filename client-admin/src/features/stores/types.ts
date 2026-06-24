@@ -6,6 +6,8 @@ export interface Store {
   longitude: number;
   phone: string;
   isActive: boolean;
+  openingTime: string;
+  closingTime: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +48,8 @@ export interface CreateStoreInput {
   longitude: number;
   phone: string;
   isActive?: boolean;
+  openingTime: string;
+  closingTime: string;
 }
 
 export type UpdateStoreInput = Partial<CreateStoreInput>;

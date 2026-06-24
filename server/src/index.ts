@@ -8,6 +8,7 @@ import { deliveryPartnersRouter } from "./features/delivery-partners/index.ts";
 import { storesRouter } from "./features/stores/index.ts";
 import { customerAddressesRouter } from "./features/customer-addresses/index.ts";
 import { usersRouter } from "./features/users/index.ts";
+import { telemetryRouter, websocket } from "./features/telemetry/index.ts";
 
 const app = new Hono();
 
@@ -66,13 +67,8 @@ orders.post("/:id/delivered", (c) => c.json({ message: "Order delivered confirme
 orders.post("/:id/failed", (c) => c.json({ message: "Order marked failed", order_id: c.req.param("id") }));
 app.route("/orders", orders);
 
-// Location Routes Group (stubs)
-const locations = new Hono();
-locations.post("/ping", (c) => c.json({ message: "Telemetry ping recorded" }));
-locations.get("/drivers/:driverId/latest", (c) => c.json({ driverId: c.req.param("driverId"), lat: 12.9716, lng: 77.5946 }));
-locations.get("/orders/:orderId/latest", (c) => c.json({ orderId: c.req.param("orderId"), lat: 12.9716, lng: 77.5946 }));
-locations.get("/orders/:orderId/history", (c) => c.json({ orderId: c.req.param("orderId"), pings: [] }));
-app.route("/locations", locations);
+// Location Routes Group (real-time telemetry & WebSocket stream)
+app.route("/locations", telemetryRouter);
 
 // Customer Tracking Routes Group (stubs)
 const tracking = new Hono();
@@ -94,4 +90,5 @@ app.notFound((c) => {
 export default {
   port: process.env.PORT || 8000,
   fetch: app.fetch,
+  websocket,
 };

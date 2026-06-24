@@ -26,6 +26,8 @@ const storeFormSchema = z.object({
   latitude: z.number({ invalid_type_error: "Please pick a location on the map" }),
   longitude: z.number({ invalid_type_error: "Please pick a location on the map" }),
   isActive: z.boolean().default(true),
+  openingTime: z.string().min(1, "Opening time is required"),
+  closingTime: z.string().min(1, "Closing time is required"),
 });
 
 type StoreFormValues = z.infer<typeof storeFormSchema>;
@@ -72,6 +74,8 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
       latitude: undefined,
       longitude: undefined,
       isActive: true,
+      openingTime: "10:00",
+      closingTime: "19:00",
     },
   });
 
@@ -95,6 +99,8 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
           latitude: store.latitude,
           longitude: store.longitude,
           isActive: store.isActive,
+          openingTime: store.openingTime || "10:00",
+          closingTime: store.closingTime || "19:00",
         });
         
         setTempCoords({
@@ -111,6 +117,8 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
           latitude: undefined,
           longitude: undefined,
           isActive: true,
+          openingTime: "10:00",
+          closingTime: "19:00",
         });
         setTempCoords(null);
         setIsConfirmed(false);
@@ -340,6 +348,37 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
                   />
                   <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                 </label>
+              </div>
+            </div>
+
+            {/* Operating Hours Card */}
+            <div className="bg-white border border-neutral-200 rounded-md p-4 shadow-sm flex flex-col gap-4">
+              <h3 className="text-[13px] font-bold text-neutral-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-neutral-100 pb-2">
+                <span>🕒 Operating Hours</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-neutral-600">Opening Time *</label>
+                  <input
+                    type="time"
+                    {...register("openingTime")}
+                    className={`px-3 py-2 border rounded-md text-[13px] focus:outline-none transition-all ${
+                      errors.openingTime ? "border-red-300 focus:border-red-500" : "border-neutral-200 focus:border-primary-600"
+                    }`}
+                  />
+                  {errors.openingTime && <span className="text-[11px] font-medium text-red-500">{errors.openingTime.message}</span>}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-semibold text-neutral-600">Closing Time *</label>
+                  <input
+                    type="time"
+                    {...register("closingTime")}
+                    className={`px-3 py-2 border rounded-md text-[13px] focus:outline-none transition-all ${
+                      errors.closingTime ? "border-red-300 focus:border-red-500" : "border-neutral-200 focus:border-primary-600"
+                    }`}
+                  />
+                  {errors.closingTime && <span className="text-[11px] font-medium text-red-500">{errors.closingTime.message}</span>}
+                </div>
               </div>
             </div>
 

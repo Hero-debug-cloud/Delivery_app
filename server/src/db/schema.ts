@@ -67,6 +67,8 @@ export const stores = pgTable("stores", {
   longitude: doublePrecision("longitude").notNull(),
   phone: text("phone").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  openingTime: text("opening_time").notNull().default("10:00"),
+  closingTime: text("closing_time").notNull().default("19:00"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

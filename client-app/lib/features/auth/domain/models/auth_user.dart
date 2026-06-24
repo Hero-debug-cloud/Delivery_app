@@ -4,6 +4,7 @@ class DriverProfile {
   final String? vehicleType;
   final String? vehicleNumber;
   final String onboardingStatus;
+  final String status;
   final String? rejectionReason;
   final String? licenseNumber;
   final String? licenseExpiry;
@@ -14,6 +15,7 @@ class DriverProfile {
   final String? identityProofNumber;
   final String? identityProofImage;
   final String? profilePictureUrl;
+  final Map<String, dynamic>? store;
 
   const DriverProfile({
     required this.id,
@@ -21,6 +23,7 @@ class DriverProfile {
     this.vehicleType,
     this.vehicleNumber,
     required this.onboardingStatus,
+    required this.status,
     this.rejectionReason,
     this.licenseNumber,
     this.licenseExpiry,
@@ -31,6 +34,7 @@ class DriverProfile {
     this.identityProofNumber,
     this.identityProofImage,
     this.profilePictureUrl,
+    this.store,
   });
 
   factory DriverProfile.fromJson(Map<String, dynamic> json) {
@@ -40,6 +44,7 @@ class DriverProfile {
       vehicleType: json['vehicleType'] as String?,
       vehicleNumber: json['vehicleNumber'] as String?,
       onboardingStatus: json['onboardingStatus'] as String,
+      status: json['status'] as String? ?? 'offline',
       rejectionReason: json['rejectionReason'] as String?,
       licenseNumber: json['licenseNumber'] as String?,
       licenseExpiry: json['licenseExpiry'] as String?,
@@ -50,6 +55,7 @@ class DriverProfile {
       identityProofNumber: json['identityProofNumber'] as String?,
       identityProofImage: json['identityProofImage'] as String?,
       profilePictureUrl: json['profilePictureUrl'] as String?,
+      store: json['store'] as Map<String, dynamic>?,
     );
   }
 }

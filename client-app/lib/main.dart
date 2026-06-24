@@ -39,6 +39,7 @@ import 'screens/pin_entry.dart';
 import 'screens/profile.dart';
 import 'screens/onboarding.dart';
 import 'screens/onboarding_review.dart';
+import 'screens/go_live.dart';
 
 void main() {
   runApp(const LogiRouteApp());
@@ -241,6 +242,10 @@ class _LogiRouteAppRouterState extends State<LogiRouteAppRouter> {
         GoRoute(
           path: '/dashboard',
           builder: (ctx, state) => const DriverDashboardScreen(),
+        ),
+        GoRoute(
+          path: '/go-live',
+          builder: (ctx, state) => const GoLiveScreen(),
         ),
         GoRoute(
           path: '/profile',

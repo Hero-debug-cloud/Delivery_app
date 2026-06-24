@@ -1,6 +1,6 @@
 import { eq, or, and, ne } from "drizzle-orm";
 import { db } from "../../db/index.ts";
-import { users, sessions, deliveryPartners } from "../../db/schema.ts";
+import { users, sessions, deliveryPartners, stores } from "../../db/schema.ts";
 import { redis } from "../../redis/index.ts";
 import { getPresignedUrl } from "../upload/s3.ts";
 import type { AdminLoginInput, AdminSignupInput, AuthResult, UpdateProfileInput } from "./types.ts";
@@ -227,8 +227,25 @@ export async function verifyOtp(
       .limit(1);
 
     if (driver) {
+      let store = null;
+      if (driver.storeId) {
+        const [linkedStore] = await db
+          .select({
+            id: stores.id,
+            name: stores.name,
+            address: stores.address,
+            openingTime: stores.openingTime,
+            closingTime: stores.closingTime,
+          })
+          .from(stores)
+          .where(eq(stores.id, driver.storeId))
+          .limit(1);
+        store = linkedStore || null;
+      }
+
       driverProfile = {
         ...driver,
+        store,
         licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
         licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
         vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
@@ -278,8 +295,25 @@ export async function getMe(sessionId: string): Promise<AuthResult["user"] | nul
       .limit(1);
 
     if (driver) {
+      let store = null;
+      if (driver.storeId) {
+        const [linkedStore] = await db
+          .select({
+            id: stores.id,
+            name: stores.name,
+            address: stores.address,
+            openingTime: stores.openingTime,
+            closingTime: stores.closingTime,
+          })
+          .from(stores)
+          .where(eq(stores.id, driver.storeId))
+          .limit(1);
+        store = linkedStore || null;
+      }
+
       driverProfile = {
         ...driver,
+        store,
         licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
         licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
         vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
@@ -380,8 +414,25 @@ export async function updateProfile(
       .limit(1);
 
     if (driver) {
+      let store = null;
+      if (driver.storeId) {
+        const [linkedStore] = await db
+          .select({
+            id: stores.id,
+            name: stores.name,
+            address: stores.address,
+            openingTime: stores.openingTime,
+            closingTime: stores.closingTime,
+          })
+          .from(stores)
+          .where(eq(stores.id, driver.storeId))
+          .limit(1);
+        store = linkedStore || null;
+      }
+
       driverProfile = {
         ...driver,
+        store,
         licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
         licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
         vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,

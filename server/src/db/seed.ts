@@ -49,7 +49,9 @@ async function main() {
           latitude: 12.9716,
           longitude: 77.5946,
           phone: "+91 80 2345 6789",
-          isActive: true
+          isActive: true,
+          openingTime: "10:00",
+          closingTime: "19:00",
         },
         {
           name: "North Hebbal Hub",
@@ -57,7 +59,9 @@ async function main() {
           latitude: 13.0358,
           longitude: 77.5978,
           phone: "+91 80 9876 5432",
-          isActive: true
+          isActive: true,
+          openingTime: "10:00",
+          closingTime: "19:00",
         }
       ]).returning();
       storeIds = insertedStores.map(s => s.id);

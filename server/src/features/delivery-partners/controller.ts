@@ -1,6 +1,11 @@
 import type { Context } from "hono";
 import * as service from "./service.ts";
 import { onboardDriverSchema, rejectDriverSchema, createDriverSchema } from "./types.ts";
+import { redis, redisKeys } from "../../redis/index.ts";
+import { broadcastStatusChange } from "../telemetry/websocket.ts";
+import { db } from "../../db/index.ts";
+import { deliveryPartners } from "../../db/schema.ts";
+import { eq } from "drizzle-orm";
 
 export async function onboardMe(c: Context) {
   try {
@@ -115,5 +120,92 @@ export async function createDriver(c: Context) {
       return c.json({ error: "CONFLICT", message: "A driver with this email address already exists" }, 409);
     }
     return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to manually create driver" }, 500);
+  }
+}
+
+export async function updateStatus(c: Context) {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ error: "UNAUTHORIZED", message: "Not authenticated" }, 401);
+    }
+
+    const body = await c.req.json();
+    const { status, storeId } = body;
+
+    if (status !== "online" && status !== "offline") {
+      return c.json({ error: "VALIDATION_ERROR", message: "Status must be 'online' or 'offline'" }, 400);
+    }
+
+    await service.updateDriverStatus(user.id, status, storeId || null);
+
+    // Resolve driver ID to clean up location telemetry
+    const [driver] = await db
+      .select({ id: deliveryPartners.id })
+      .from(deliveryPartners)
+      .where(eq(deliveryPartners.userId, user.id))
+      .limit(1);
+
+    if (driver) {
+      const driverId = driver.id;
+      if (status === "offline") {
+        // Clean up locations and details in Redis
+        await redis.zrem(redisKeys.driverLocations, driverId);
+        await redis.del(redisKeys.driverDetails(driverId));
+      }
+      
+      // Broadcast status change event to all connected admin panels
+      broadcastStatusChange(driverId, status, user.name);
+    }
+
+    return c.json({ success: true, message: `Driver status updated to ${status}` }, 200);
+  } catch (err: any) {
+    console.error("[updateStatus] error:", err);
+    if (err.message === "DRIVER_NOT_FOUND") {
+      return c.json({ error: "NOT_FOUND", message: "Driver profile not found" }, 404);
+    }
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to update driver status" }, 500);
+  }
+}
+
+export async function getProfile(c: Context) {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ error: "UNAUTHORIZED", message: "Not authenticated" }, 401);
+    }
+
+    const profile = await service.getDriverProfile(user.id);
+    return c.json({ success: true, profile }, 200);
+  } catch (err: any) {
+    console.error("[getProfile] error:", err);
+    if (err.message === "DRIVER_NOT_FOUND") {
+      return c.json({ error: "NOT_FOUND", message: "Driver profile not found" }, 404);
+    }
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve profile" }, 500);
+  }
+}
+
+export async function updateProfile(c: Context) {
+  try {
+    const user = c.get("user");
+    if (!user) {
+      return c.json({ error: "UNAUTHORIZED", message: "Not authenticated" }, 401);
+    }
+
+    const body = await c.req.json();
+    const { name, email, profilePictureUrl } = body;
+
+    const profile = await service.updateDriverProfile(user.id, { name, email, profilePictureUrl });
+    return c.json({ success: true, message: "Profile updated successfully", profile }, 200);
+  } catch (err: any) {
+    console.error("[updateProfile] error:", err);
+    if (err.message === "DUPLICATE_EMAIL") {
+      return c.json({ error: "CONFLICT", message: "An account with this email address already exists" }, 409);
+    }
+    if (err.message === "DRIVER_NOT_FOUND") {
+      return c.json({ error: "NOT_FOUND", message: "Driver profile not found" }, 404);
+    }
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to update profile" }, 500);
   }
 }

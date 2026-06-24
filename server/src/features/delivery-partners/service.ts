@@ -1,6 +1,6 @@
-import { eq, and, or, like, desc, sql } from "drizzle-orm";
+import { eq, and, or, like, desc, sql, ne } from "drizzle-orm";
 import { db } from "../../db/index.ts";
-import { users, deliveryPartners } from "../../db/schema.ts";
+import { users, deliveryPartners, stores } from "../../db/schema.ts";
 import { getPresignedUrl, extractS3Key } from "../upload/s3.ts";
 import type { OnboardDriverInput, GetDriversFilters, CreateDriverInput } from "./types.ts";
 
@@ -240,4 +240,131 @@ export async function createDriver(input: CreateDriverInput): Promise<string> {
   });
 
   return result.id;
+}
+
+export async function updateDriverStatus(
+  userId: string,
+  status: "online" | "offline",
+  storeId: string | null
+): Promise<void> {
+  const [driver] = await db
+    .select()
+    .from(deliveryPartners)
+    .where(eq(deliveryPartners.userId, userId))
+    .limit(1);
+
+  if (!driver) {
+    throw new Error("DRIVER_NOT_FOUND");
+  }
+
+  await db
+    .update(deliveryPartners)
+    .set({
+      status,
+      storeId,
+      updatedAt: new Date(),
+    })
+    .where(eq(deliveryPartners.userId, userId));
+}
+
+export async function getDriverProfile(userId: string) {
+  const [driver] = await db
+    .select()
+    .from(deliveryPartners)
+    .where(eq(deliveryPartners.userId, userId))
+    .limit(1);
+
+  if (!driver) {
+    throw new Error("DRIVER_NOT_FOUND");
+  }
+
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) {
+    throw new Error("USER_NOT_FOUND");
+  }
+
+  let store = null;
+  if (driver.storeId) {
+    const [linkedStore] = await db
+      .select({
+        id: stores.id,
+        name: stores.name,
+        address: stores.address,
+        openingTime: stores.openingTime,
+        closingTime: stores.closingTime,
+      })
+      .from(stores)
+      .where(eq(stores.id, driver.storeId))
+      .limit(1);
+    store = linkedStore || null;
+  }
+
+  return {
+    id: driver.id,
+    userId: driver.userId,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    vehicleType: driver.vehicleType,
+    vehicleNumber: driver.vehicleNumber,
+    onboardingStatus: driver.onboardingStatus,
+    status: driver.status,
+    licenseNumber: driver.licenseNumber,
+    licenseExpiry: driver.licenseExpiry,
+    licenseFrontUrl: driver.licenseFrontUrl ? await getPresignedUrl(driver.licenseFrontUrl) : null,
+    licenseBackUrl: driver.licenseBackUrl ? await getPresignedUrl(driver.licenseBackUrl) : null,
+    vehiclePlateImage: driver.vehiclePlateImage ? await getPresignedUrl(driver.vehiclePlateImage) : null,
+    identityProofType: driver.identityProofType,
+    identityProofNumber: driver.identityProofNumber,
+    identityProofImage: driver.identityProofImage ? await getPresignedUrl(driver.identityProofImage) : null,
+    profilePictureUrl: driver.profilePictureUrl ? await getPresignedUrl(driver.profilePictureUrl) : null,
+    store,
+  };
+}
+
+export async function updateDriverProfile(
+  userId: string,
+  input: { name?: string; email?: string; profilePictureUrl?: string }
+) {
+  const updateData: { name?: string; email?: string | null } = {};
+  if (input.name !== undefined) {
+    updateData.name = input.name.trim();
+  }
+  if (input.email !== undefined) {
+    updateData.email = input.email.trim() ? input.email.trim().toLowerCase() : null;
+  }
+
+  if (updateData.email) {
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.email, updateData.email), ne(users.id, userId)))
+      .limit(1);
+    if (existing) {
+      throw new Error("DUPLICATE_EMAIL");
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    if (Object.keys(updateData).length > 0) {
+      await tx.update(users).set(updateData).where(eq(users.id, userId));
+    }
+
+    if (input.profilePictureUrl !== undefined) {
+      await tx
+        .update(deliveryPartners)
+        .set({
+          profilePictureUrl: input.profilePictureUrl ? extractS3Key(input.profilePictureUrl) : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryPartners.userId, userId));
+    }
+  });
+
+  return getDriverProfile(userId);
 }

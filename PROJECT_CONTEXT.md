@@ -52,7 +52,7 @@ delivery_app/
 ├── client-app/                 # Flutter Mobile App (Dual-Role: Customer + Driver)
 │   ├── lib/
 │   │   ├── main.dart           # App entry: MultiBlocProvider + GoRouter role-based routing
-│   │   ├── core/               # App theme and style tokens
+│   │   ├── core/               # App theme, style tokens, and ShiftManager state listener
 │   │   ├── features/           # Modular Domain Features
 │   │   │   ├── auth/           # OTP auth flow, AuthCubit, AuthUser model, role-based signup
 │   │   │   │   ├── data/       # AuthRemoteSource, AuthRepository
@@ -73,7 +73,7 @@ delivery_app/
 │   │   │       ├── data/       # AddressRemoteSource, AddressRepository
 │   │   │       ├── domain/     # CustomerAddress model
 │   │   │       └── presentation/ # SavedAddressesScreen, AddEditAddressScreen, AddressCubit
-│   │   └── screens/            # Driver screens (dashboard, onboarding, tracking, pin verify)
+│   │   └── screens/            # Driver screens (dashboard, onboarding, go_live, tracking, pin verify)
 │   └── pubspec.yaml
 │
 ├── scripts/                    # Dev scripts and automated tests
@@ -152,7 +152,7 @@ delivery_app/
 
 ### Module 4: Store / Warehouse Management ✅ Completed
 - **Database Schema**:
-  - `stores` table with fields: `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `isActive`, `createdAt`, `updatedAt`.
+  - `stores` table with fields: `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `openingTime` (defaults to `"10:00"`), `closingTime` (defaults to `"19:00"`), `isActive`, `createdAt`, `updatedAt`.
 - **Backend API** (`server/src/features/stores/`):
   - `GET /stores` — lists stores with server-side search (`ilike` on name/address), `isActive` filter, and metadata pagination. Public access.
   - `POST /stores` — create a new store. Requires `super_admin` role.
@@ -163,7 +163,7 @@ delivery_app/
 - **Admin Panel UI** (`client-admin/src/features/stores/`):
   - Store list table with debounced search, status filter dropdown, toggle active switch, edit and delete actions.
   - `StoreModal.tsx` — full create/edit form with:
-    - Store name and phone fields with validation.
+    - Store name, phone, and operating timings (openingTime, closingTime time pickers) with validation.
     - Active status toggle.
     - **Leaflet + OpenStreetMap** interactive map coordinate picker (no API key required).
     - Real-time Nominatim geocoding search with autocomplete dropdown.
@@ -230,6 +230,33 @@ delivery_app/
   - Setup modular architecture with `AddressRemoteSource`, `AddressRepository`, and state management managed via `AddressCubit` and `AddressState`.
   - `SavedAddressesScreen` — displays saved addresses with intuitive visual default indicator and swift deletion/navigation links.
   - `AddEditAddressScreen` — beautiful form utilizing location pinning, recipient credentials (name/phone), label selector (Home, Work, Other), and default selection switch.
+
+---
+
+### Module 8: Driver Shift Management & Geofenced Activation ✅ Completed
+- **State Sync & Telemetry Backend APIs** (`server/src/features/delivery-partners/` and `server/src/features/telemetry/`):
+  - `PATCH /delivery-partners/me/status` — updates active driver duty status (`online` / `offline`) and updates the `storeId` they are currently active at. Cleans up Redis cache and sends WebSocket offline events.
+  - Profile sync `/auth/me` resolves store configuration dynamically including details and operating hours.
+  - `GET /delivery-partners/me/profile` — retrieves the driver's full profile details (vehicle records, license, active warehouse/store, S3 presigned document URLs).
+  - `PATCH /delivery-partners/me/profile` — updates driver name, email, or profile picture URL key.
+  - `POST /locations/ping` — REST endpoint to receive coordinates, velocity, and battery levels from active drivers. Updates Redis GEO index, sends real-time coordinates to WebSocket clients tracking that driver, and asynchronously logs coordinate histories to the PostgreSQL `location_pings` table without blocking.
+  - `GET /locations/ws` — Bun Hono WebSocket upgrade route supporting subscription payloads (`subscribe`/`unsubscribe`) to selectively stream telemetry.
+  - `GET /locations/live` — Fetches current online drivers from Redis GEO index, filters out inactive sessions (>60s since last ping), and supports pagination (`page`, `limit`) and `search` query parameters. Mounts `/locations/online` as a fallback alias.
+- **Flutter App Architecture**:
+  - `ShiftManager` (`client-app/lib/core/shift_manager.dart`) — singleton state manager notifying subscribers of changes to active driver duty status and coordinates. Houses the **10-second periodic telemetry Timer** that pings `/locations/ping` using real-time `Geolocator` coordinates and real device battery level via the `battery_plus` package.
+  - `GoLiveScreen` (`client-app/lib/screens/go_live.dart`) — lists active stores sorted by distance relative to the driver's current coordinates using Haversine calculation. Enforces a 100m geofence limit to transition online. Includes a simulated location toggle for testing near the chosen hub.
+  - `DashboardScreen` (`client-app/lib/screens/dashboard.dart`) — bottom tabbed layout containing three navigation targets:
+    1. **Dashboard Tab**: Displays shift control card (offline button to start shift or online telemetry banner with dynamic location status) and announcements list.
+    2. **Tasks Tab**: Displays assignments list (currently empty placeholder).
+    3. **Profile Tab**: Renders driver's personal and vehicle profile details using `ProfileScreen`.
+  - `ProfileScreen` (`client-app/lib/screens/profile.dart`) — Renders driver details, verified documents section (tappable cards opening fullscreen image dialog previews), and:
+    - **Initials Fallback**: Displays the uppercase first and last letters of the driver's name in the avatar circle if `profilePictureUrl` is empty/null.
+    - **Camera Overlay & Upload**: Camera button on avatar launches camera/gallery sheet, compresses, uploads via `POST /upload` multipart form, updates via `PATCH /delivery-partners/me/profile`, and calls `checkAuth()` for state sync.
+- **Admin Tracking Panel UI & Sub-Navigation** (`client-admin/src/app/(admin)/tracking/`):
+  - `layout.tsx` — Persistent sidebar navigation containing a dynamic right-side fixed-positioned flyout popover for the **Live** and **Replay** sub-modules, styled with the project's clean light theme. Click events on the parent menu item are intercepted (`e.preventDefault()`) to prevent accidental page resets, and the parent item retains its hover highlight state (`isFlyoutOpen`) while the flyout menu is active.
+  - `/tracking/page.tsx` (Live sub-module) — Cleaned live fleet monitoring dashboard, with page-level tabs and conditional submodule rendering blocks removed.
+  - `/tracking/replay/page.tsx` (Replay sub-module) — Separate sub-module page serving as a styled placeholder card for the historical route replay feature.
+  - `TrackingMap.tsx` — Interactive OpenStreetMap canvas utilizing Leaflet to display driver pins, pan/zoom to selected drivers, and trigger popup details on click.
 
 ---
 

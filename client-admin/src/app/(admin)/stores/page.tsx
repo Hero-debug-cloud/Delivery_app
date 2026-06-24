@@ -19,6 +19,16 @@ import { useAuthStore } from "@/features/auth/store";
 import { PaginationFooter } from "@/components/shared/PaginationFooter";
 import type { Store } from "@/features/stores/types";
 
+function formatTime12h(timeStr: string): string {
+  if (!timeStr) return "";
+  const [hoursStr, minutesStr] = timeStr.split(":");
+  const hours = parseInt(hoursStr, 10);
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+  const paddedHours = String(displayHours).padStart(2, "0");
+  return `${paddedHours}:${minutesStr} ${ampm}`;
+}
+
 export default function StoresPage() {
   const { user } = useAuthStore();
   const isSuperAdmin = user?.role === "super_admin";
@@ -202,6 +212,7 @@ export default function StoresPage() {
                   <th className="p-4">Address</th>
                   <th className="p-4">Coordinates (Lat/Lng)</th>
                   <th className="p-4">Contact</th>
+                  <th className="p-4">Timing</th>
                   <th className="p-4 text-center">Status</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
                 </tr>
@@ -232,6 +243,11 @@ export default function StoresPage() {
                         <Phone size={12} className="text-neutral-400 shrink-0" />
                         <span>{store.phone}</span>
                       </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-neutral-50 text-neutral-700 border border-neutral-200 text-[12px] font-semibold whitespace-nowrap">
+                        🕒 {formatTime12h(store.openingTime)} - {formatTime12h(store.closingTime)}
+                      </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${

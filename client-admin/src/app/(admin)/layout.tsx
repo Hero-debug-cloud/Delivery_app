@@ -14,6 +14,7 @@ import {
   Search,
   Package,
   ChevronLeft,
+  ChevronRight,
   Users,
   User,
 } from "lucide-react";
@@ -29,53 +30,81 @@ interface SidebarLinkProps {
   active: boolean;
   isCollapsed: boolean;
   badge?: string;
+  hasSubItems?: boolean;
+  isFlyoutOpen?: boolean;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }
 
-function SidebarLink({ href, label, icon, active, isCollapsed, badge }: SidebarLinkProps) {
+function SidebarLink({ 
+  href, 
+  label, 
+  icon, 
+  active, 
+  isCollapsed, 
+  badge,
+  hasSubItems,
+  isFlyoutOpen,
+  onMouseEnter,
+  onMouseLeave
+}: SidebarLinkProps) {
+  const isHighlight = active || isFlyoutOpen;
   return (
-    <Link 
-      href={href}
-      className={`group relative flex items-center rounded-lg transition-all duration-200 ${
-        isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3"
-      } ${
-        active 
-          ? "bg-primary-50/70 text-primary-700 font-semibold shadow-sm" 
-          : "text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900"
-      }`}
-    >
-      {/* Active Accent Bar */}
-      <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary-600 rounded-r-md transition-all duration-200 ${
-        active ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"
-      }`} />
+    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <Link 
+        href={hasSubItems ? "#" : href}
+        onClick={(e) => {
+          if (hasSubItems) {
+            e.preventDefault();
+          }
+        }}
+        className={`group relative flex items-center rounded-lg transition-all duration-200 ${
+          isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3"
+        } ${
+          isHighlight 
+            ? "bg-primary-50/70 text-primary-700 font-semibold shadow-sm" 
+            : "text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900"
+        }`}
+      >
+        {/* Active Accent Bar */}
+        <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-primary-600 rounded-r-md transition-all duration-200 ${
+          isHighlight ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0"
+        }`} />
 
-      {/* Icon with micro-animation on hover */}
-      <div className={`transition-transform duration-200 group-hover:scale-105 ${active ? "text-primary-600" : "text-neutral-500 group-hover:text-neutral-900"}`}>
-        {icon}
-      </div>
-
-      {/* Label and Badge (hidden when collapsed) */}
-      {!isCollapsed && (
-        <div className="flex items-center justify-between w-full overflow-hidden">
-          <span className="text-sm font-medium whitespace-nowrap truncate">{label}</span>
-          {badge === "live" && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-[10px] font-semibold text-emerald-600 border border-emerald-200">
-              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Live</span>
-            </span>
-          )}
+        {/* Icon with micro-animation on hover */}
+        <div className={`transition-transform duration-200 group-hover:scale-105 ${isHighlight ? "text-primary-600" : "text-neutral-500 group-hover:text-neutral-900"}`}>
+          {icon}
         </div>
-      )}
 
-      {/* Collapsed Tooltip */}
-      {isCollapsed && (
-        <div className="absolute left-16 z-30 px-2.5 py-1.5 rounded-md bg-neutral-900 text-white text-[12px] font-medium opacity-0 invisible translate-x-2 group-hover:opacity-100 group-hover:visible group-hover:translate-x-0 transition-all duration-200 pointer-events-none shadow-md whitespace-nowrap">
-          {label}
-          {badge === "live" && " (Live)"}
-          {/* Tooltip Arrow */}
-          <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-neutral-900 rotate-45" />
-        </div>
-      )}
-    </Link>
+        {/* Label and Badge (hidden when collapsed) */}
+        {!isCollapsed && (
+          <div className="flex items-center justify-between w-full overflow-hidden">
+            <span className="text-sm font-medium whitespace-nowrap truncate">{label}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {badge === "live" && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-[10px] font-semibold text-emerald-600 border border-emerald-200">
+                  <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Live</span>
+                </span>
+              )}
+              {hasSubItems && (
+                <ChevronRight size={13} className="text-neutral-400 group-hover:text-neutral-600 transition-transform duration-200" />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Collapsed Tooltip */}
+        {isCollapsed && (
+          <div className="absolute left-16 z-30 px-2.5 py-1.5 rounded-md bg-neutral-900 text-white text-[12px] font-medium opacity-0 invisible translate-x-2 group-hover:opacity-100 group-hover:visible group-hover:translate-x-0 transition-all duration-200 pointer-events-none shadow-md whitespace-nowrap">
+            {label}
+            {badge === "live" && " (Live)"}
+            {/* Tooltip Arrow */}
+            <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-2 h-2 bg-neutral-900 rotate-45" />
+          </div>
+        )}
+      </Link>
+    </div>
   );
 }
 
@@ -91,6 +120,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Floating hover menu states
+  const [hoveredLink, setHoveredLink] = useState<{
+    label: string;
+    top: number;
+    items: { href: string; label: string }[];
+  } | null>(null);
+  const timeoutRef = React.useRef<any>(null);
+
+  const handleMouseEnter = (e: React.MouseEvent, item: any) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredLink({
+      label: item.label,
+      top: rect.top,
+      items: item.subItems,
+    });
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setHoveredLink(null);
+    }, 150);
+  };
 
   const popoverRef = React.useRef<HTMLDivElement>(null);
   const footerRef = React.useRef<HTMLDivElement>(null);
@@ -161,12 +214,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   };
 
-  const navSections = [
+  interface NavItem {
+    href: string;
+    label: string;
+    icon: React.ReactNode;
+    badge?: string;
+    subItems?: { href: string; label: string }[];
+  }
+
+  interface NavSection {
+    title: string;
+    items: NavItem[];
+  }
+
+  const navSections: NavSection[] = [
     {
       title: "Overview",
       items: [
         { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-        { href: "/tracking", label: "Live Tracking", icon: <MapPin size={18} />, badge: "live" },
+        { 
+          href: "/tracking", 
+          label: "Live Tracking", 
+          icon: <MapPin size={18} />, 
+          subItems: [
+            { href: "/tracking", label: "Live" },
+            { href: "/tracking/replay", label: "Replay" }
+          ]
+        },
       ]
     },
     {
@@ -256,6 +330,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         active={pathname === item.href || pathname.startsWith(item.href + "/")}
                         isCollapsed={resolvedCollapsed}
                         badge={item.badge}
+                        hasSubItems={!!item.subItems}
+                        isFlyoutOpen={hoveredLink?.label === item.label}
+                        onMouseEnter={(e) => {
+                          if (item.subItems) {
+                            handleMouseEnter(e, item);
+                          } else {
+                            handleMouseLeave();
+                          }
+                        }}
+                        onMouseLeave={handleMouseLeave}
                       />
                     ))}
                   </div>
@@ -432,6 +516,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           isSaving={isSavingProfile}
           isSelf={true}
         />
+      )}
+
+      {/* Floating Right Flyout Hover Menu */}
+      {hoveredLink && (
+        <div
+          onMouseEnter={() => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          }}
+          onMouseLeave={handleMouseLeave}
+          style={{ top: hoveredLink.top }}
+          className={`fixed z-[9999] w-40 bg-white shadow-lg rounded-lg p-1.5 flex flex-col gap-1 border border-neutral-200 ${
+            resolvedCollapsed ? "left-[76px]" : "left-[248px]"
+          }`}
+        >
+          {hoveredLink.items.map((sub) => {
+            const isSubActive = pathname === sub.href;
+            return (
+              <Link
+                key={sub.href}
+                href={sub.href}
+                onClick={() => setHoveredLink(null)}
+                className={`px-3 py-2 text-left text-[13px] font-semibold rounded-md transition-all duration-200 ${
+                  isSubActive
+                    ? "bg-primary-50/70 text-primary-700 font-semibold shadow-sm"
+                    : "text-neutral-600 hover:bg-neutral-100/80 hover:text-neutral-900"
+                }`}
+              >
+                {sub.label}
+              </Link>
+            );
+          })}
+        </div>
       )}
     </AuthGuard>
   );

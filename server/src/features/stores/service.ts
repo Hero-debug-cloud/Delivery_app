@@ -85,6 +85,8 @@ export async function createStore(input: CreateStoreInput) {
       longitude: input.longitude,
       phone: input.phone,
       isActive: input.isActive ?? true,
+      openingTime: input.openingTime,
+      closingTime: input.closingTime,
     })
     .returning();
 

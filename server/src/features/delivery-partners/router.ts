@@ -4,11 +4,28 @@ import * as controller from "./controller.ts";
 
 export const deliveryPartnersRouter = new Hono();
 
-// Driver onboarding (requires driver role)
 deliveryPartnersRouter.patch(
   "/me/onboard",
   requireAuth(["delivery_partner"]),
   controller.onboardMe
+);
+
+deliveryPartnersRouter.patch(
+  "/me/status",
+  requireAuth(["delivery_partner"]),
+  controller.updateStatus
+);
+
+deliveryPartnersRouter.get(
+  "/me/profile",
+  requireAuth(["delivery_partner"]),
+  controller.getProfile
+);
+
+deliveryPartnersRouter.patch(
+  "/me/profile",
+  requireAuth(["delivery_partner"]),
+  controller.updateProfile
 );
 
 // Admin-facing actions (requires admin roles)

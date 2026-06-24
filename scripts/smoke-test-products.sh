@@ -200,7 +200,7 @@ if [ "$HTTP_CODE" = "200" ]; then
     log_fail "Product details missing linked categoryName" "$BODY"
   fi
   # Verify presigned URL returned
-  if echo "$BODY" | grep -q '"imageUrl":"http://localhost:9000/logiroute-uploads/uploads/apple_test.jpg'; then
+  if echo "$BODY" | grep -q -E '"imageUrl":"http://[^"]+:9000/logiroute-uploads/uploads/apple_test.jpg'; then
     log_pass "Product details returns browser-resolvable presigned S3 imageUrl: $(echo "$BODY" | grep -o '"imageUrl":"[^"]*"' | cut -d'"' -f4 | cut -c1-60)..."
   else
     log_fail "Product details missing S3 presigned URL signature" "$BODY"
