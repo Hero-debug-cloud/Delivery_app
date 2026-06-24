@@ -242,6 +242,8 @@ delivery_app/
   - `POST /locations/ping` — REST endpoint to receive coordinates, velocity, and battery levels from active drivers. Updates Redis GEO index, sends real-time coordinates to WebSocket clients tracking that driver, and asynchronously logs coordinate histories to the PostgreSQL `location_pings` table without blocking.
   - `GET /locations/ws` — Bun Hono WebSocket upgrade route supporting subscription payloads (`subscribe`/`unsubscribe`) to selectively stream telemetry.
   - `GET /locations/live` — Fetches current online drivers from Redis GEO index, filters out inactive sessions (>60s since last ping), and supports pagination (`page`, `limit`) and `search` query parameters. Mounts `/locations/online` as a fallback alias.
+  - `GET /locations/replay/drivers` — Fetches a paginated, searchable list of drivers with active/logged shifts on a specific date (timezone-safe, Drizzle-native operators).
+  - `GET /locations/replay/pings` — Fetches the compressed historical track coordinates (`[ [lat, lng, timestamp, speed, battery], ... ]`) for route playback.
 - **Flutter App Architecture**:
   - `ShiftManager` (`client-app/lib/core/shift_manager.dart`) — singleton state manager notifying subscribers of changes to active driver duty status and coordinates. Houses the **10-second periodic telemetry Timer** that pings `/locations/ping` using real-time `Geolocator` coordinates and real device battery level via the `battery_plus` package.
   - `GoLiveScreen` (`client-app/lib/screens/go_live.dart`) — lists active stores sorted by distance relative to the driver's current coordinates using Haversine calculation. Enforces a 100m geofence limit to transition online. Includes a simulated location toggle for testing near the chosen hub.
@@ -255,7 +257,7 @@ delivery_app/
 - **Admin Tracking Panel UI & Sub-Navigation** (`client-admin/src/app/(admin)/tracking/`):
   - `layout.tsx` — Persistent sidebar navigation containing a dynamic right-side fixed-positioned flyout popover for the **Live** and **Replay** sub-modules, styled with the project's clean light theme. Click events on the parent menu item are intercepted (`e.preventDefault()`) to prevent accidental page resets, and the parent item retains its hover highlight state (`isFlyoutOpen`) while the flyout menu is active.
   - `/tracking/page.tsx` (Live sub-module) — Cleaned live fleet monitoring dashboard, with page-level tabs and conditional submodule rendering blocks removed.
-  - `/tracking/replay/page.tsx` (Replay sub-module) — Separate sub-module page serving as a styled placeholder card for the historical route replay feature.
+  - `/tracking/replay/page.tsx` (Replay sub-module) — Fully implemented route playback engine including date picking (with next/prev day navigation arrows), infinite scroll sidebar, Leaflet map canvas rendering bounds/paths/pins, speed multipliers (2x - 300x), linear interpolation (LERP) rendering at 60fps via `requestAnimationFrame` with binary search playhead seekers, and performance optimization directly bypassing React re-renders using elements ref node updates.
   - `TrackingMap.tsx` — Interactive OpenStreetMap canvas utilizing Leaflet to display driver pins, pan/zoom to selected drivers, and trigger popup details on click.
 
 ---
