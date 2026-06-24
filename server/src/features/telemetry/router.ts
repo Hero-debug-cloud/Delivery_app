@@ -4,7 +4,7 @@ import { requireAuth } from "../auth/middleware.ts";
 import { redis, redisKeys } from "../../redis/index.ts";
 import { db } from "../../db/index.ts";
 import { deliveryPartners, locationPings, users, driverSessions } from "../../db/schema.ts";
-import { eq, desc, and, or, like, sql } from "drizzle-orm";
+import { eq, desc, and, or, like, lte, gte, isNull } from "drizzle-orm";
 import { trackingWsRoute, broadcastTelemetry } from "./websocket.ts";
 
 export const telemetryRouter = new Hono();
@@ -261,10 +261,10 @@ telemetryRouter.get("/replay/drivers", requireAuth(["super_admin", "store_manage
 
     // A session overlaps with [dayStart, dayEnd] if startedAt <= dayEnd AND (endedAt >= dayStart OR endedAt IS NULL)
     const conditions = [
-      sql`${driverSessions.startedAt} <= ${dayEnd}`,
+      lte(driverSessions.startedAt, dayEnd),
       or(
-        sql`${driverSessions.endedAt} >= ${dayStart}`,
-        sql`${driverSessions.endedAt} IS NULL`
+        gte(driverSessions.endedAt, dayStart),
+        isNull(driverSessions.endedAt)
       )
     ];
 
@@ -356,8 +356,8 @@ telemetryRouter.get("/replay/pings", requireAuth(["super_admin", "store_manager"
       .where(
         and(
           eq(locationPings.deliveryPartnerId, driverId),
-          sql`${locationPings.recordedAt} >= ${dayStart}`,
-          sql`${locationPings.recordedAt} <= ${dayEnd}`
+          gte(locationPings.recordedAt, dayStart),
+          lte(locationPings.recordedAt, dayEnd)
         )
       )
       .orderBy(locationPings.recordedAt);
@@ -380,3 +380,4 @@ telemetryRouter.get("/replay/pings", requireAuth(["super_admin", "store_manager"
     return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve coordinates for replay" }, 500);
   }
 });
+
