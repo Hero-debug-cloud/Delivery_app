@@ -11,6 +11,7 @@ import {
   Battery, 
   Gauge, 
   Clock,
+  ChevronLeft,
   ChevronRight,
   Info,
   AlertTriangle,
@@ -93,6 +94,24 @@ export default function ReplayPage() {
   useEffect(() => {
     playbackSpeedRef.current = playbackSpeed;
   }, [playbackSpeed]);
+
+  // Adjust replay date by specified number of days (timezone-safe)
+  const adjustDate = (days: number) => {
+    if (!date) return;
+    const parts = date.split("-");
+    if (parts.length !== 3) return;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    
+    const current = new Date(year, month, day);
+    current.setDate(current.getDate() + days);
+    
+    const newYear = current.getFullYear();
+    const newMonth = String(current.getMonth() + 1).padStart(2, "0");
+    const newDay = String(current.getDate()).padStart(2, "0");
+    setDate(`${newYear}-${newMonth}-${newDay}`);
+  };
 
   // 1. Fetch drivers for selected date
   const fetchDrivers = async (isInitial = false, searchVal = searchQuery, targetDate = date) => {
@@ -381,14 +400,32 @@ export default function ReplayPage() {
             <div className="p-4 border-b border-neutral-200 flex flex-col gap-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider">Replay Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-2.5 text-neutral-400" size={14} />
-                  <input 
-                    type="date" 
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full pl-9 pr-4 py-1.5 border border-neutral-200 rounded-md text-[12px] focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 font-semibold"
-                  />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adjustDate(-1)}
+                    className="p-1.5 rounded-md border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-500 hover:text-neutral-800 transition-colors shadow-sm cursor-pointer"
+                    title="Previous Day"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <div className="relative flex-1">
+                    <Calendar className="absolute left-3 top-2.5 text-neutral-400" size={14} />
+                    <input 
+                      type="date" 
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full pl-9 pr-4 py-1.5 border border-neutral-200 rounded-md text-[12px] focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-600 font-semibold"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => adjustDate(1)}
+                    className="p-1.5 rounded-md border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-500 hover:text-neutral-800 transition-colors shadow-sm cursor-pointer"
+                    title="Next Day"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
               </div>
 
