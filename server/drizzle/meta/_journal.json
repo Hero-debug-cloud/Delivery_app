@@ -71,6 +71,13 @@
       "when": 1782317615747,
       "tag": "0009_left_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782327503566,
+      "tag": "0010_glossy_daimon_hellstrom",
+      "breakpoints": true
     }
   ]
 }

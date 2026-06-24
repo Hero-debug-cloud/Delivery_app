@@ -3,8 +3,8 @@ import { z } from "zod";
 import { requireAuth } from "../auth/middleware.ts";
 import { redis, redisKeys } from "../../redis/index.ts";
 import { db } from "../../db/index.ts";
-import { deliveryPartners, locationPings, users } from "../../db/schema.ts";
-import { eq, desc } from "drizzle-orm";
+import { deliveryPartners, locationPings, users, driverSessions } from "../../db/schema.ts";
+import { eq, desc, and, or, like, sql } from "drizzle-orm";
 import { trackingWsRoute, broadcastTelemetry } from "./websocket.ts";
 
 export const telemetryRouter = new Hono();
@@ -245,4 +245,138 @@ telemetryRouter.get("/orders/:orderId/latest", (c) => {
 // GET /locations/orders/:orderId/history - Stub for order route replay history
 telemetryRouter.get("/locations/orders/:orderId/history", (c) => {
   return c.json({ orderId: c.req.param("orderId"), pings: [] });
+});
+
+// GET /locations/replay/drivers - Retrieve drivers who had online shifts on a specific date
+telemetryRouter.get("/replay/drivers", requireAuth(["super_admin", "store_manager", "dispatcher"]), async (c) => {
+  try {
+    const dateStr = c.req.query("date") || new Date().toISOString().split("T")[0];
+    const search = c.req.query("search") || "";
+    const page = c.req.query("page") ? parseInt(c.req.query("page")!, 10) : 1;
+    const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 10;
+    const offset = (page - 1) * limit;
+
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+    // A session overlaps with [dayStart, dayEnd] if startedAt <= dayEnd AND (endedAt >= dayStart OR endedAt IS NULL)
+    const conditions = [
+      sql`${driverSessions.startedAt} <= ${dayEnd}`,
+      or(
+        sql`${driverSessions.endedAt} >= ${dayStart}`,
+        sql`${driverSessions.endedAt} IS NULL`
+      )
+    ];
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(like(users.name, searchPattern));
+    }
+
+    const whereClause = and(...conditions);
+
+    // Fetch unique drivers that have sessions matching
+    const driversList = await db
+      .select({
+        id: deliveryPartners.id,
+        name: users.name,
+        phone: users.phone,
+        vehicleType: deliveryPartners.vehicleType,
+        vehicleNumber: deliveryPartners.vehicleNumber,
+      })
+      .from(driverSessions)
+      .innerJoin(deliveryPartners, eq(driverSessions.deliveryPartnerId, deliveryPartners.id))
+      .innerJoin(users, eq(deliveryPartners.userId, users.id))
+      .where(whereClause)
+      .groupBy(
+        deliveryPartners.id,
+        users.name,
+        users.phone,
+        deliveryPartners.vehicleType,
+        deliveryPartners.vehicleNumber
+      )
+      .orderBy(users.name)
+      .limit(limit)
+      .offset(offset);
+
+    // Get total unique drivers matching the filter
+    const totalCountQuery = await db
+      .select({
+        id: deliveryPartners.id,
+      })
+      .from(driverSessions)
+      .innerJoin(deliveryPartners, eq(driverSessions.deliveryPartnerId, deliveryPartners.id))
+      .innerJoin(users, eq(deliveryPartners.userId, users.id))
+      .where(whereClause)
+      .groupBy(deliveryPartners.id);
+
+    const total = totalCountQuery.length;
+    const totalPages = Math.ceil(total / limit);
+
+    return c.json({
+      success: true,
+      data: driversList,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: totalPages,
+        hasNext: page < totalPages,
+        hasPrevious: page > 1,
+      }
+    }, 200);
+  } catch (err: any) {
+    console.error("[locations/replay/drivers] error:", err);
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve active drivers for date" }, 500);
+  }
+});
+
+// GET /locations/replay/pings - Retrieve full track of coordinates for a driver on a specific date
+telemetryRouter.get("/replay/pings", requireAuth(["super_admin", "store_manager", "dispatcher"]), async (c) => {
+  try {
+    const driverId = c.req.query("driverId");
+    const dateStr = c.req.query("date") || new Date().toISOString().split("T")[0];
+
+    if (!driverId) {
+      return c.json({ error: "VALIDATION_ERROR", message: "driverId is required" }, 400);
+    }
+
+    const dayStart = new Date(`${dateStr}T00:00:00.000Z`);
+    const dayEnd = new Date(`${dateStr}T23:59:59.999Z`);
+
+    const pings = await db
+      .select({
+        latitude: locationPings.latitude,
+        longitude: locationPings.longitude,
+        recordedAt: locationPings.recordedAt,
+        speed: locationPings.speed,
+        battery: locationPings.battery,
+      })
+      .from(locationPings)
+      .where(
+        and(
+          eq(locationPings.deliveryPartnerId, driverId),
+          sql`${locationPings.recordedAt} >= ${dayStart}`,
+          sql`${locationPings.recordedAt} <= ${dayEnd}`
+        )
+      )
+      .orderBy(locationPings.recordedAt);
+
+    // Optimized response structure: flat array of [latitude, longitude, timestampSeconds, speed, battery]
+    const flatPings = pings.map(p => [
+      p.latitude,
+      p.longitude,
+      Math.floor(p.recordedAt.getTime() / 1000),
+      p.speed || 0,
+      p.battery || 0
+    ]);
+
+    return c.json({
+      success: true,
+      pings: flatPings,
+    }, 200);
+  } catch (err: any) {
+    console.error("[locations/replay/pings] error:", err);
+    return c.json({ error: "INTERNAL_SERVER_ERROR", message: "Failed to retrieve coordinates for replay" }, 500);
+  }
 });

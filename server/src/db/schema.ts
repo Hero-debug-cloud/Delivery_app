@@ -314,6 +314,7 @@ export const storesRelations = relations(stores, ({ many }) => ({
   orders: many(orders),
   products: many(products),
   carts: many(carts),
+  driverSessions: many(driverSessions),
 }));
 
 export const deliveryPartnersRelations = relations(deliveryPartners, ({ one, many }) => ({
@@ -327,6 +328,7 @@ export const deliveryPartnersRelations = relations(deliveryPartners, ({ one, man
   }),
   orders: many(orders),
   locationPings: many(locationPings),
+  driverSessions: many(driverSessions),
 }));
 
 export const customerAddressesRelations = relations(customerAddresses, ({ one, many }) => ({
@@ -443,5 +445,32 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
     fields: [sessions.userId],
     references: [users.id],
+  }),
+}));
+
+// 14. driver_sessions Table
+export const driverSessions = pgTable("driver_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  deliveryPartnerId: uuid("delivery_partner_id").notNull().references(() => deliveryPartners.id, { onDelete: "cascade" }),
+  storeId: uuid("store_id").references(() => stores.id, { onDelete: "set null" }),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    partnerStartedIdx: index("driver_sessions_partner_started_idx").on(table.deliveryPartnerId, table.startedAt),
+    startedAtIdx: index("driver_sessions_started_at_idx").on(table.startedAt),
+  };
+});
+
+export const driverSessionsRelations = relations(driverSessions, ({ one }) => ({
+  deliveryPartner: one(deliveryPartners, {
+    fields: [driverSessions.deliveryPartnerId],
+    references: [deliveryPartners.id],
+  }),
+  store: one(stores, {
+    fields: [driverSessions.storeId],
+    references: [stores.id],
   }),
 }));

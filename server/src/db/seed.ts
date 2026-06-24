@@ -1,5 +1,5 @@
 import { db, client } from "./index.ts";
-import { users, stores, productCategories, products } from "./schema.ts";
+import { users, stores, productCategories, products, driverSessions, locationPings, deliveryPartners } from "./schema.ts";
 import { eq } from "drizzle-orm";
 
 async function main() {
@@ -299,6 +299,100 @@ async function main() {
       console.log(`Seeded ${productsData.length} products successfully.`);
     } else {
       console.log("Products already seeded in database.");
+    }
+
+    // Seed Replay Driver Coordinates for Today
+    console.log("Checking and seeding replay driver...");
+    const replayPhone = "+91 99999 88888";
+    let replayUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.phone, replayPhone))
+      .limit(1)
+      .then(res => res[0]);
+
+    let driverProfile;
+    if (!replayUser) {
+      console.log("Creating new replay driver...");
+      const [newUser] = await db.insert(users).values({
+        name: "Replay Test Driver",
+        phone: replayPhone,
+        role: "delivery_partner",
+        isActive: true,
+      }).returning();
+      replayUser = newUser;
+
+      const [newDriver] = await db.insert(deliveryPartners).values({
+        userId: newUser.id,
+        storeId: storeIds[0] || null,
+        vehicleType: "motorcycle",
+        vehicleNumber: "KA 03 EX 1234",
+        status: "offline",
+        onboardingStatus: "approved",
+      }).returning();
+      driverProfile = newDriver;
+    } else {
+      const [existingDriver] = await db
+        .select()
+        .from(deliveryPartners)
+        .where(eq(deliveryPartners.userId, replayUser.id))
+        .limit(1);
+      driverProfile = existingDriver;
+    }
+
+    if (driverProfile) {
+      console.log("Seeding driver sessions and coordinate history...");
+      // Delete past sessions/pings for this test driver to avoid duplicate seeding
+      await db.delete(driverSessions).where(eq(driverSessions.deliveryPartnerId, driverProfile.id));
+      await db.delete(locationPings).where(eq(locationPings.deliveryPartnerId, driverProfile.id));
+
+      const now = new Date();
+      const startTime = new Date(now.getTime() - 4 * 60 * 60 * 1000); // 4 hours ago
+      const endTime = new Date(now.getTime() - 1 * 60 * 60 * 1000);   // 1 hour ago
+
+      // 1. Insert session record
+      await db.insert(driverSessions).values({
+        deliveryPartnerId: driverProfile.id,
+        storeId: storeIds[0] || null,
+        startedAt: startTime,
+        endedAt: endTime,
+      });
+
+      // 2. Generate ~120 location pings along a path (spaced 30 seconds apart, totaling 1 hour of travel)
+      const pingsData = [];
+      const startLat = 12.9716;
+      const startLng = 77.5946;
+      const endLat = 12.9892;
+      const endLng = 77.6412; // towards Indiranagar
+      
+      const totalPings = 120;
+      const intervalSeconds = 30;
+
+      for (let i = 0; i < totalPings; i++) {
+        const t = i / (totalPings - 1);
+        // Interpolate coordinate path with a small wave to look like actual roads
+        const lat = startLat + (endLat - startLat) * t + 0.001 * Math.sin(t * Math.PI * 4);
+        const lng = startLng + (endLng - startLng) * t + 0.0025 * Math.sin(t * Math.PI * 3);
+        
+        const recordedAt = new Date(startTime.getTime() + i * intervalSeconds * 1000);
+        
+        // Speed values between 15 and 45 km/h
+        const speed = 20 + 15 * Math.sin(t * Math.PI * 8) + Math.random() * 5;
+        // Battery values slowly decreasing from 92 to 85
+        const battery = Math.max(0, Math.floor(92 - t * 7));
+
+        pingsData.push({
+          deliveryPartnerId: driverProfile.id,
+          latitude: lat,
+          longitude: lng,
+          speed: parseFloat(speed.toFixed(1)),
+          battery,
+          recordedAt,
+        });
+      }
+
+      await db.insert(locationPings).values(pingsData);
+      console.log(`Seeded ${pingsData.length} location pings for historical replay successfully.`);
     }
 
     console.log("=== Database Seeding Completed Successfully ===");

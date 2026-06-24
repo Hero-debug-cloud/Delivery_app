@@ -1,6 +1,6 @@
 import { eq, and, or, like, desc, sql, ne } from "drizzle-orm";
 import { db } from "../../db/index.ts";
-import { users, deliveryPartners, stores } from "../../db/schema.ts";
+import { users, deliveryPartners, stores, driverSessions } from "../../db/schema.ts";
 import { getPresignedUrl, extractS3Key } from "../upload/s3.ts";
 import type { OnboardDriverInput, GetDriversFilters, CreateDriverInput } from "./types.ts";
 
@@ -257,14 +257,50 @@ export async function updateDriverStatus(
     throw new Error("DRIVER_NOT_FOUND");
   }
 
-  await db
-    .update(deliveryPartners)
-    .set({
-      status,
-      storeId,
-      updatedAt: new Date(),
-    })
-    .where(eq(deliveryPartners.userId, userId));
+  await db.transaction(async (tx) => {
+    // 1. Update status on delivery partner record
+    await tx
+      .update(deliveryPartners)
+      .set({
+        status,
+        storeId,
+        updatedAt: new Date(),
+      })
+      .where(eq(deliveryPartners.userId, userId));
+
+    if (status === "online") {
+      // 2a. Close any lingering active sessions for safety
+      await tx
+        .update(driverSessions)
+        .set({ endedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(driverSessions.deliveryPartnerId, driver.id),
+            sql`${driverSessions.endedAt} IS NULL`
+          )
+        );
+
+      // 2b. Start a new session
+      await tx
+        .insert(driverSessions)
+        .values({
+          deliveryPartnerId: driver.id,
+          storeId: storeId,
+          startedAt: new Date(),
+        });
+    } else {
+      // 3. Close the active session
+      await tx
+        .update(driverSessions)
+        .set({ endedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(driverSessions.deliveryPartnerId, driver.id),
+            sql`${driverSessions.endedAt} IS NULL`
+          )
+        );
+    }
+  });
 }
 
 export async function getDriverProfile(userId: string) {
