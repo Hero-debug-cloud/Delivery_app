@@ -6,6 +6,7 @@ import { db } from "../../db/index.ts";
 import { deliveryPartners, locationPings, users, driverSessions } from "../../db/schema.ts";
 import { eq, desc, and, or, like, lte, gte, isNull } from "drizzle-orm";
 import { trackingWsRoute, broadcastTelemetry } from "./websocket.ts";
+import { preFilterPings, simplifyRDP } from "./simplify.ts";
 
 export const telemetryRouter = new Hono();
 
@@ -371,9 +372,20 @@ telemetryRouter.get("/replay/pings", requireAuth(["super_admin", "store_manager"
       p.battery || 0
     ]);
 
+    const epsilonQuery = c.req.query("epsilon");
+    const epsilon = epsilonQuery ? parseFloat(epsilonQuery) : 0.00015; // default 0.00015 degrees (~15m)
+
+    // 1. Pre-filter stationary pings
+    const filteredPings = preFilterPings(flatPings, 0.0001, 300);
+
+    // 2. Simplify path via RDP
+    const simplifiedPings = simplifyRDP(filteredPings, epsilon);
+
     return c.json({
       success: true,
-      pings: flatPings,
+      pings: simplifiedPings,
+      originalCount: flatPings.length,
+      simplifiedCount: simplifiedPings.length,
     }, 200);
   } catch (err: any) {
     console.error("[locations/replay/pings] error:", err);
