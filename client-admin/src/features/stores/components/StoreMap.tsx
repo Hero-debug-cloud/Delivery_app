@@ -62,6 +62,7 @@ export default function StoreMap({
   const [isResolving, setIsResolving] = useState(false);
   const [mode, setMode] = useState<"marker" | "polygon">("marker");
   const [polygonPoints, setPolygonPoints] = useState<L.LatLngLiteral[]>([]);
+  const [customRadiusKm, setCustomRadiusKm] = useState<number>(5);
 
   // SVG Custom Pin (Lucide MapPin styled with brand primary blue #2563eb)
   const customIcon = L.divIcon({
@@ -223,13 +224,13 @@ export default function StoreMap({
     }
   }, [latitude, longitude]);
 
-  // Generate 5km Hexagon Zone around center
-  const generate5kmCatchment = () => {
+  // Generate Hexagon Zone around center with custom radius
+  const generateCustomCatchment = () => {
     const lat = latitude || 12.9716;
     const lng = longitude || 77.5946;
     const points: L.LatLngLiteral[] = [];
     const R = 6371000;
-    const d = 5000; // 5km
+    const d = customRadiusKm * 1000; // custom radius in meters
     for (let i = 0; i < 6; i++) {
       const angle = (i * 60 * Math.PI) / 180;
       const dLat = (d * Math.cos(angle)) / R;
@@ -258,15 +259,16 @@ export default function StoreMap({
   return (
     <div className="flex flex-col gap-2">
       {/* Mode Controls Bar */}
-      <div className="flex items-center justify-between gap-2 p-1.5 bg-neutral-50 border border-neutral-200 rounded-md">
-        <div className="flex gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-neutral-50 border border-neutral-200/80 rounded-xl shadow-sm">
+        {/* Left: Premium Segmented Mode Selector */}
+        <div className="flex bg-neutral-200/70 p-0.5 rounded-lg border border-neutral-300/30 shadow-inner select-none">
           <button
             type="button"
             onClick={() => setMode("marker")}
-            className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+            className={`px-3.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5 ${
               mode === "marker"
-                ? "bg-primary-600 text-white shadow-sm"
-                : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
+                ? "bg-white text-neutral-800 shadow-sm font-bold"
+                : "text-neutral-500 hover:text-neutral-800"
             }`}
           >
             📍 Pin Location
@@ -274,34 +276,57 @@ export default function StoreMap({
           <button
             type="button"
             onClick={() => setMode("polygon")}
-            className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${
+            className={`px-3.5 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-150 flex items-center gap-1.5 ${
               mode === "polygon"
-                ? "bg-primary-600 text-white shadow-sm"
-                : "bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50"
+                ? "bg-white text-neutral-800 shadow-sm font-bold"
+                : "text-neutral-500 hover:text-neutral-800"
             }`}
           >
-            ⬡ Draw Boundary
+            ⬡ Boundary Area
           </button>
         </div>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={generate5kmCatchment}
-            className="px-2.5 py-1.5 bg-white hover:bg-neutral-50 text-neutral-600 border border-neutral-200 rounded-md text-[11px] font-bold transition-all"
-            title="Auto generate a 5km operational hexagon around the store pin"
-          >
-            ⚡ Auto 5km Zone
-          </button>
-          {polygonPoints.length > 0 && (
-            <button
-              type="button"
-              onClick={clearPolygon}
-              className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-md text-[11px] font-bold transition-all"
-            >
-              Clear Boundary
-            </button>
-          )}
-        </div>
+
+        {/* Right: Mode-Specific Actions */}
+        {mode === "polygon" ? (
+          <div className="flex items-center gap-2 animate-fade-in">
+            {/* Radius selector group */}
+            <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-lg p-0.5 shadow-sm">
+              <span className="text-[10px] text-neutral-400 font-semibold pl-1.5 select-none">Radius:</span>
+              <input
+                type="number"
+                min="0.5"
+                max="100"
+                step="0.5"
+                value={customRadiusKm}
+                onChange={(e) => setCustomRadiusKm(Math.max(0.5, parseFloat(e.target.value) || 1))}
+                className="w-10 text-center text-[11px] font-extrabold text-neutral-800 focus:outline-none bg-neutral-50 border border-neutral-200/50 rounded py-0.5 ml-1"
+              />
+              <span className="text-[10px] font-bold text-neutral-500 select-none pr-1.5">km</span>
+              <button
+                type="button"
+                onClick={generateCustomCatchment}
+                className="px-2.5 py-1 bg-primary-50 hover:bg-primary-100 active:bg-primary-200 text-primary-700 rounded-md text-[11px] font-extrabold transition-all border border-primary-100 shadow-sm cursor-pointer"
+                title={`Generate operational hexagon with radius of ${customRadiusKm}km`}
+              >
+                ⚡ Auto Zone
+              </button>
+            </div>
+
+            {polygonPoints.length > 0 && (
+              <button
+                type="button"
+                onClick={clearPolygon}
+                className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 active:bg-red-200 text-red-600 border border-red-100 rounded-lg text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-[10.5px] text-neutral-400 font-semibold italic pr-1 select-none">
+            click map to drop hub pin location
+          </div>
+        )}
       </div>
 
       <div className="relative w-full h-[280px] bg-neutral-100 border border-neutral-200 rounded overflow-hidden">
