@@ -13,6 +13,7 @@ import { eq, and, desc, or, like, count } from "drizzle-orm";
 import { redis, redisKeys } from "../../redis/index.ts";
 import type { CreateOrderInput, OrderQueryFilters } from "./types.ts";
 import crypto from "crypto";
+import { getPresignedUrl } from "../upload/s3.ts";
 
 export async function createOrder(customerId: string, input: CreateOrderInput) {
   // 1. Idempotency Check
@@ -400,7 +401,28 @@ export async function acceptOrder(orderId: string, driverId: string) {
   });
 }
 
-export async function logOrderEvent(orderId: string, driverId: string, eventType: string, newStatus?: any) {
+function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export async function logOrderEvent(
+  orderId: string,
+  driverId: string,
+  eventType: string,
+  newStatus?: any,
+  latitude?: number,
+  longitude?: number
+) {
   return await db.transaction(async (tx) => {
     const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
     if (!order) throw new Error("ORDER_NOT_FOUND");
@@ -411,6 +433,28 @@ export async function logOrderEvent(orderId: string, driverId: string, eventType
 
     const [driver] = await tx.select().from(deliveryPartners).where(eq(deliveryPartners.id, driverId)).limit(1);
     if (!driver) throw new Error("DRIVER_NOT_FOUND");
+
+    // Geofencing Check
+    if (eventType === "reached_store") {
+      if (latitude === undefined || longitude === undefined) {
+        throw new Error("COORDINATES_REQUIRED");
+      }
+      const [store] = await tx.select().from(stores).where(eq(stores.id, order.storeId)).limit(1);
+      if (!store) throw new Error("STORE_NOT_FOUND");
+
+      const distance = getDistanceInMeters(latitude, longitude, store.latitude, store.longitude);
+      if (distance > 100) {
+        throw new Error("DRIVER_NOT_NEARBY");
+      }
+    } else if (eventType === "reached_location") {
+      if (latitude === undefined || longitude === undefined) {
+        throw new Error("COORDINATES_REQUIRED");
+      }
+      const distance = getDistanceInMeters(latitude, longitude, order.deliveryLatitude, order.deliveryLongitude);
+      if (distance > 100) {
+        throw new Error("DRIVER_NOT_NEARBY");
+      }
+    }
 
     // Optionally update order status
     if (newStatus) {
@@ -435,7 +479,8 @@ export async function logOrderEvent(orderId: string, driverId: string, eventType
   });
 }
 
-export async function completeOrder(orderId: string, driverId: string, pin: string) {
+
+export async function completeOrder(orderId: string, driverId: string, pin: string, deliveryProofImageKey?: string) {
   return await db.transaction(async (tx) => {
     const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).limit(1);
     if (!order) throw new Error("ORDER_NOT_FOUND");
@@ -458,6 +503,7 @@ export async function completeOrder(orderId: string, driverId: string, pin: stri
         status: "delivered",
         deliveredAt: new Date(),
         updatedAt: new Date(),
+        deliveryProofImageKey: deliveryProofImageKey || null,
       })
       .where(eq(orders.id, orderId));
 
@@ -572,6 +618,8 @@ export async function getTrackDetails(trackingToken: string) {
     };
   }
 
+  const deliveryProofImageUrl = order.deliveryProofImageKey ? await getPresignedUrl(order.deliveryProofImageKey) : null;
+
   return {
     orderId: order.id,
     status: order.status,
@@ -582,6 +630,8 @@ export async function getTrackDetails(trackingToken: string) {
     deliveryLongitude: order.deliveryLongitude,
     paymentType: order.paymentType,
     grandTotal: order.grandTotal,
+    deliveryProofImageKey: order.deliveryProofImageKey,
+    deliveryProofImageUrl,
     store: store ? {
       name: store.name,
       address: store.address,

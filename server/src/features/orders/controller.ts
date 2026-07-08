@@ -246,14 +246,24 @@ export async function reachedStore(c: Context) {
   try {
     const user = c.get("user");
     const orderId = c.req.param("id")!;
+    const body = await c.req.json().catch(() => ({}));
+    const { latitude, longitude } = body;
+
+    if (latitude === undefined || longitude === undefined) {
+      return c.json({ success: false, error: "COORDINATES_REQUIRED", message: "Coordinates (latitude, longitude) are required for verification." }, 400);
+    }
 
     const partner = await getDriverPartner(user.id);
     if (!partner) return c.json({ success: false, message: "Driver profile not found" }, 404);
 
-    const order = await orderService.logOrderEvent(orderId, partner.id, "reached_store");
+    const order = await orderService.logOrderEvent(orderId, partner.id, "reached_store", undefined, latitude, longitude);
     return c.json({ success: true, message: "Status updated: Reached Store", data: order }, 200);
   } catch (err: any) {
     console.error("[reachedStore] error:", err);
+    const msg = err.message || "";
+    if (msg === "DRIVER_NOT_NEARBY") {
+      return c.json({ success: false, error: "DRIVER_NOT_NEARBY", message: "You must be within 100 meters of the store." }, 400);
+    }
     return c.json({ success: false, message: err.message || "Failed to update status" }, 400);
   }
 }
@@ -294,14 +304,24 @@ export async function reachedLocation(c: Context) {
   try {
     const user = c.get("user");
     const orderId = c.req.param("id")!;
+    const body = await c.req.json().catch(() => ({}));
+    const { latitude, longitude } = body;
+
+    if (latitude === undefined || longitude === undefined) {
+      return c.json({ success: false, error: "COORDINATES_REQUIRED", message: "Coordinates (latitude, longitude) are required for verification." }, 400);
+    }
 
     const partner = await getDriverPartner(user.id);
     if (!partner) return c.json({ success: false, message: "Driver profile not found" }, 404);
 
-    const order = await orderService.logOrderEvent(orderId, partner.id, "reached_location");
+    const order = await orderService.logOrderEvent(orderId, partner.id, "reached_location", undefined, latitude, longitude);
     return c.json({ success: true, message: "Status updated: Reached Location", data: order }, 200);
   } catch (err: any) {
     console.error("[reachedLocation] error:", err);
+    const msg = err.message || "";
+    if (msg === "DRIVER_NOT_NEARBY") {
+      return c.json({ success: false, error: "DRIVER_NOT_NEARBY", message: "You must be within 100 meters of the delivery location." }, 400);
+    }
     return c.json({ success: false, message: err.message || "Failed to update status" }, 400);
   }
 }
@@ -310,7 +330,7 @@ export async function completeOrder(c: Context) {
   try {
     const user = c.get("user");
     const orderId = c.req.param("id")!;
-    const { pin } = await c.req.json();
+    const { pin, deliveryProofImageKey } = await c.req.json();
 
     if (!pin) {
       return c.json({ success: false, message: "PIN code is required" }, 400);
@@ -319,7 +339,7 @@ export async function completeOrder(c: Context) {
     const partner = await getDriverPartner(user.id);
     if (!partner) return c.json({ success: false, message: "Driver profile not found" }, 404);
 
-    const order = await orderService.completeOrder(orderId, partner.id, pin);
+    const order = await orderService.completeOrder(orderId, partner.id, pin, deliveryProofImageKey);
     return c.json({ success: true, message: "Order delivered successfully", data: order }, 200);
   } catch (err: any) {
     console.error("[completeOrder] error:", err);

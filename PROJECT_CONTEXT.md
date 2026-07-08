@@ -151,15 +151,16 @@ delivery_app/
 
 ---
 
-### Module 4: Store / Warehouse Management ✅ Completed
+### Module 4: Store / Warehouse Management & Spatial Boundaries ✅ Completed
 - **Database Schema**:
-  - `stores` table with fields: `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `openingTime` (defaults to `"10:00"`), `closingTime` (defaults to `"19:00"`), `isActive`, `createdAt`, `updatedAt`.
+  - `stores` table with fields: `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `openingTime` (defaults to `"10:00"`), `closingTime` (defaults to `"19:00"`), `isActive`, `catchmentPolygon` (`geometry(Polygon, 4326)` custom type), `createdAt`, `updatedAt`.
 - **Backend API** (`server/src/features/stores/`):
   - `GET /stores` — lists stores with server-side search (`ilike` on name/address), `isActive` filter, and metadata pagination. Public access.
-  - `POST /stores` — create a new store. Requires `super_admin` role.
+  - `POST /stores` — create a new store with optional catchment WKT polygon. Requires `super_admin` role.
   - `GET /stores/:id` — fetch a single store by ID. Public access.
-  - `PATCH /stores/:id` — update store details (name, phone, location, status). Requires `super_admin` or `store_manager`.
+  - `PATCH /stores/:id` — update store details (name, phone, location, status, catchment polygon WKT). Requires `super_admin` or `store_manager`.
   - `DELETE /stores/:id` — soft-delete with active order/driver constraint checks. Requires `super_admin`.
+  - `POST /stores/check-serviceability` — check if customer coordinates lie within any active store's catchment polygon boundary using PostGIS `ST_Contains` spatial query.
   - Zod schema validation (`createStoreSchema`, `updateStoreSchema`) with role-based middleware guards.
 - **Admin Panel UI** (`client-admin/src/features/stores/`):
   - Store list table with debounced search, status filter dropdown, toggle active switch, edit and delete actions.
@@ -169,6 +170,7 @@ delivery_app/
     - **Leaflet + OpenStreetMap** interactive map coordinate picker (no API key required).
     - Real-time Nominatim geocoding search with autocomplete dropdown.
     - **"Locate Me"** button using browser `navigator.geolocation` → auto-pins current GPS location.
+    - **Catchment Area Editor**: Interactive boundary drawing mode allowing admins to draw custom service polygons on the map canvas, with a one-click **"Auto 5km Zone"** hexagon generator.
     - Reverse geocoding on every map click / locate action to auto-fill address field.
     - Confirm Location flow locks in `latitude`, `longitude`, and `address` before form submission.
   - TanStack Query hooks for create, update, delete, toggle mutations with automatic cache invalidation.
@@ -265,7 +267,7 @@ delivery_app/
 
 ### Module 9: Ordering, Driver Dispatch & Public Tracking ✅ Completed
 - **Database Schema**:
-  - `orders` table: Tracks `externalOrderId` (idempotency key), `storeId`, `customerId`, `assignedDriverId`, coordinates, payment type, `status` (`created`, `assigned`, `accepted`, `picked_up`, `in_transit`, `delivered`, `failed`), `trackingToken`, and `proofPin`.
+  - `orders` table: Tracks `externalOrderId` (idempotency key), `storeId`, `customerId`, `assignedDriverId`, coordinates, payment type, `status` (`created`, `assigned`, `accepted`, `picked_up`, `in_transit`, `delivered`, `failed`), `trackingToken`, `proofPin`, and `deliveryProofImageKey` (text).
   - `order_items` and `order_events` tables: Manage ordered products and state transition logging.
 - **Backend API** (`server/src/features/orders/`):
   - `POST /orders` — Idempotent order placement (checks if order with `externalOrderId` already exists and returns it).
@@ -274,15 +276,18 @@ delivery_app/
   - `POST /orders/:id/assign` — Admin manual override driver assignment.
   - `GET /orders/active` — Retrieves current active driver assignment.
   - `POST /orders/:id/reached-store` / `picked-up` / `out-for-delivery` / `reached-location` — Transition milestones.
-  - `POST /orders/:id/complete` — Secure OTP verification comparing client PIN with `proofPin` to finalize dropoff.
-  - `GET /track/:trackingToken` — Public endpoint returning real-time status and historical event timeline.
+    - **Geofenced Milestone Validation**: `/reached-store` and `/reached-location` require current driver coordinates (`latitude` / `longitude` inside body). The server calculates distance from target using Haversine algorithm and throws `DRIVER_NOT_NEARBY` if the distance is > 100m.
+  - `POST /orders/:id/complete` — Secure OTP verification comparing client PIN with `proofPin` to finalize dropoff. Accepts optional `deliveryProofImageKey` parameter to store delivery photo reference.
+  - `GET /track/:trackingToken` — Public endpoint returning real-time status, historical event timeline, and delivery confirmation photo URL.
 - **Admin Panel UI** (`client-admin/src/app/(admin)/orders/page.tsx`):
   - Active Orders table with live dispatch queue, details drawer, dynamic actions, driver selection override list, and status filtering.
 - **Flutter Customer/Driver App**:
   - Customer screens: `/customer/orders` (history list) and `/customer/track/:trackingToken` (interactive map tracking driver pin moving in real time with event details).
   - Driver Active Delivery: `/active-delivery` with maps routing, GPS updates, milestone buttons (Reached Store $\rightarrow$ Picked Up $\rightarrow$ Out For Delivery $\rightarrow$ Reached Location), and secure PIN entry dropoff.
+    - **Geofence GPS verification**: Automatically retrieves current location via `Geolocator` when advancing milestones, passing coords to backend. Displays error SnackBars on boundary validation failures.
+    - **Delivery Proof Photo Upload**: Integrated camera capture (`ImagePicker`) and upload to S3/MinIO via `/upload` multipart forms directly inside `PinEntryScreen`, passing S3 key upon dropoff completion.
 - **Verification**:
-  - Automated smoke test (`./scripts/smoke-test-orders.sh`) validating all 17 milestones (checkout $\rightarrow$ ignore $\rightarrow$ assign $\rightarrow$ delivery $\rightarrow$ pin $\rightarrow$ tracking) runs and passes 100%.
+  - Automated smoke test (`./scripts/smoke-test-orders.sh`) validating all 17 milestones (checkout $\rightarrow$ ignore $\rightarrow$ assign $\rightarrow$ delivery $\rightarrow$ pin $\rightarrow$ tracking) including geofenced coordinates and photo uploads runs and passes 100%.
 
 ---
 

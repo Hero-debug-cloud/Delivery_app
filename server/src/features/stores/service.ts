@@ -87,6 +87,7 @@ export async function createStore(input: CreateStoreInput) {
       isActive: input.isActive ?? true,
       openingTime: input.openingTime,
       closingTime: input.closingTime,
+      catchmentPolygon: input.catchmentPolygon || null,
     })
     .returning();
 
@@ -131,3 +132,30 @@ export async function deleteStore(id: string) {
 
   await db.delete(stores).where(eq(stores.id, id));
 }
+
+export async function checkServiceability(latitude: number, longitude: number) {
+  const result = await db.execute(sql`
+    SELECT id, name FROM ${stores}
+    WHERE is_active = true 
+      AND catchment_polygon IS NOT NULL
+      AND ST_Contains(
+        catchment_polygon,
+        ST_SetSRID(ST_Point(${longitude}, ${latitude}), 4326)
+      )
+    LIMIT 1;
+  `);
+
+  if (result.length > 0) {
+    const row = result[0];
+    return {
+      serviceable: true,
+      storeId: row.id as string,
+      storeName: row.name as string,
+    };
+  }
+
+  return {
+    serviceable: false,
+  };
+}
+

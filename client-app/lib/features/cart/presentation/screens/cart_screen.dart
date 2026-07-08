@@ -19,6 +19,39 @@ class CartScreen extends StatefulWidget {
 class _CartScreenState extends State<CartScreen> {
   String _paymentMethod = 'cod'; // 'cod' is the only option for now
   bool _isPlacingOrder = false;
+  String? _checkedAddressId;
+  bool _isServiceable = true;
+  bool _isCheckingServiceability = false;
+
+  Future<void> _checkAddressServiceability(CustomerAddress address) async {
+    setState(() {
+      _isCheckingServiceability = true;
+    });
+    try {
+      final response = await LogiRouteApp.dio.post(
+        '/stores/check-serviceability',
+        data: {
+          'latitude': address.latitude,
+          'longitude': address.longitude,
+        },
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data;
+        setState(() {
+          _isServiceable = data['serviceable'] == true;
+        });
+      }
+    } catch (e) {
+      debugPrint('[CartScreen] Serviceability check error: $e');
+      setState(() {
+        _isServiceable = true; // Fallback to serviceable on connection error
+      });
+    } finally {
+      setState(() {
+        _isCheckingServiceability = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -55,6 +88,13 @@ class _CartScreenState extends State<CartScreen> {
                   : <CustomerAddress>[];
               final defaultAddress = addresses.where((addr) => addr.isDefault).firstOrNull ??
                   (addresses.isNotEmpty ? addresses.first : null);
+
+              if (defaultAddress != null && defaultAddress.id != _checkedAddressId) {
+                _checkedAddressId = defaultAddress.id;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _checkAddressServiceability(defaultAddress);
+                });
+              }
 
               return Column(
                 children: [
@@ -219,6 +259,33 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                   ],
                 ),
+                if (!_isServiceable) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Address is outside our serviceable delivery zone.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -513,7 +580,7 @@ class _CartScreenState extends State<CartScreen> {
           width: double.infinity,
           height: 52,
           child: ElevatedButton(
-            onPressed: (hasAddress && !_isPlacingOrder)
+            onPressed: (hasAddress && !_isPlacingOrder && _isServiceable && !_isCheckingServiceability)
                 ? () => _handlePlaceOrder(context)
                 : null,
             style: ElevatedButton.styleFrom(

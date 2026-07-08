@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:dio/dio.dart';
 import '../main.dart';
 
 class ActiveDeliveryScreen extends StatefulWidget {
@@ -78,8 +80,24 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
     setState(() => _isUpdating = true);
 
     try {
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        );
+      } catch (e) {
+        debugPrint('[ActiveDelivery] Geolocator error: $e');
+      }
+
       if (_step == 'arrived_at_store') {
-        final res = await LogiRouteApp.dio.post('/orders/${widget.orderId}/reached-store');
+        final res = await LogiRouteApp.dio.post(
+          '/orders/${widget.orderId}/reached-store',
+          data: {
+            'latitude': pos?.latitude ?? 0.0,
+            'longitude': pos?.longitude ?? 0.0,
+          },
+        );
         if (res.statusCode == 200) {
           setState(() {
             _step = 'picked_up';
@@ -95,12 +113,25 @@ class _ActiveDeliveryScreenState extends State<ActiveDeliveryScreen> {
           });
         }
       } else if (_step == 'arrived_at_customer') {
-        final res = await LogiRouteApp.dio.post('/orders/${widget.orderId}/reached-location');
+        final res = await LogiRouteApp.dio.post(
+          '/orders/${widget.orderId}/reached-location',
+          data: {
+            'latitude': pos?.latitude ?? 0.0,
+            'longitude': pos?.longitude ?? 0.0,
+          },
+        );
         if (res.statusCode == 200) {
           if (mounted) {
             context.go('/delivery/${widget.orderId}/complete');
           }
         }
+      }
+    } on DioException catch (e) {
+      final msg = e.response?.data?['message'] ?? 'Failed to progress step: $e';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
       if (mounted) {

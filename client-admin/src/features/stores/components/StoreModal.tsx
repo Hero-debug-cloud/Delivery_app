@@ -28,6 +28,7 @@ const storeFormSchema = z.object({
   isActive: z.boolean().default(true),
   openingTime: z.string().min(1, "Opening time is required"),
   closingTime: z.string().min(1, "Closing time is required"),
+  catchmentPolygon: z.string().optional().nullable(),
 });
 
 type StoreFormValues = z.infer<typeof storeFormSchema>;
@@ -76,6 +77,7 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
       isActive: true,
       openingTime: "10:00",
       closingTime: "19:00",
+      catchmentPolygon: null,
     },
   });
 
@@ -101,6 +103,7 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
           isActive: store.isActive,
           openingTime: store.openingTime || "10:00",
           closingTime: store.closingTime || "19:00",
+          catchmentPolygon: store.catchmentPolygon || null,
         });
         
         setTempCoords({
@@ -119,6 +122,7 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
           isActive: true,
           openingTime: "10:00",
           closingTime: "19:00",
+          catchmentPolygon: null,
         });
         setTempCoords(null);
         setIsConfirmed(false);
@@ -476,6 +480,8 @@ export function StoreModal({ isOpen, onClose, onSave, store, isSaving }: StoreMo
               longitude={tempCoords?.lng}
               onLocationSelect={handleLocationSelect}
               isConfirmed={isConfirmed}
+              catchmentPolygon={watch("catchmentPolygon")}
+              onPolygonChange={(wkt) => setValue("catchmentPolygon", wkt)}
             />
 
             {/* Confirm Location button row */}

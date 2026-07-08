@@ -181,3 +181,27 @@ export async function deleteStore(c: Context) {
     }, 500);
   }
 }
+
+export async function checkServiceability(c: Context) {
+  try {
+    const { latitude, longitude } = await c.req.json();
+
+    if (latitude === undefined || longitude === undefined) {
+      return c.json({ success: false, message: "latitude and longitude are required" }, 400);
+    }
+
+    const result = await storeService.checkServiceability(latitude, longitude);
+    return c.json({
+      success: true,
+      ...result,
+    }, 200);
+  } catch (err) {
+    console.error("[checkServiceability] controller error:", err);
+    return c.json({
+      success: false,
+      message: "Failed to check serviceability",
+      error: { code: "INTERNAL_SERVER_ERROR" },
+    }, 500);
+  }
+}
+

@@ -1,5 +1,12 @@
-import { pgTable, text, timestamp, boolean, integer, doublePrecision, jsonb, uuid, pgEnum, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, doublePrecision, jsonb, uuid, pgEnum, index, uniqueIndex, customType } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+
+// Custom type for PostGIS geometry Polygon (SRID 4326)
+export const geometryPolygon = customType<{ data: string }>({
+  dataType() {
+    return "geometry(Polygon, 4326)";
+  },
+});
 
 // Enums
 export const roleEnum = pgEnum("user_role", [
@@ -69,6 +76,7 @@ export const stores = pgTable("stores", {
   isActive: boolean("is_active").notNull().default(true),
   openingTime: text("opening_time").notNull().default("10:00"),
   closingTime: text("closing_time").notNull().default("19:00"),
+  catchmentPolygon: geometryPolygon("catchment_polygon"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -201,6 +209,7 @@ export const orders = pgTable("orders", {
   status: orderStatusEnum("status").notNull().default("created"),
   trackingToken: text("tracking_token").unique().notNull(),
   proofPin: text("proof_pin"),
+  deliveryProofImageKey: text("delivery_proof_image_key"),
   itemTotal: integer("item_total"),
   deliveryFee: integer("delivery_fee"),
   handlingCharge: integer("handling_charge"),

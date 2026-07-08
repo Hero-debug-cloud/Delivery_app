@@ -9,6 +9,7 @@ export const createStoreSchema = z.object({
   isActive: z.boolean().optional().default(true),
   openingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Opening time must be in HH:MM format"),
   closingTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Closing time must be in HH:MM format"),
+  catchmentPolygon: z.string().optional().nullable(),
 });
 
 export const updateStoreSchema = createStoreSchema.partial();

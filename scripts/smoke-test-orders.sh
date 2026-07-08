@@ -121,7 +121,7 @@ log_section "3. Login Admin & Approve Driver"
 RESP=$(curl -s -c "$ADMIN_COOKIE_JAR" -w "\n%{http_code}" \
   -X POST "${BASE_URL}/auth/admin/login" \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"admin@gmail.com","password":"Admin@1234"}')
+  -d '{"identifier":"admin@gmail.com","password":"Herovinay1@"}')
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 if [ "$HTTP_CODE" = "200" ]; then
   log_pass "Admin logged in successfully"
@@ -146,7 +146,10 @@ log_section "4. Resolve Store and Products"
 PRODUCT_ROW=$(docker exec -i logiroute-db-dev psql -U postgres -d logiroute -t -A -F ',' -c "SELECT store_id, id FROM products LIMIT 1;")
 STORE_ID=$(echo "$PRODUCT_ROW" | cut -d',' -f1)
 PRODUCT_ID=$(echo "$PRODUCT_ROW" | cut -d',' -f2)
-log_pass "Resolved Store ID: $STORE_ID"
+STORE_COORDS=$(docker exec -i logiroute-db-dev psql -U postgres -d logiroute -t -A -F ',' -c "SELECT latitude, longitude FROM stores WHERE id = '$STORE_ID';")
+STORE_LAT=$(echo "$STORE_COORDS" | cut -d',' -f1)
+STORE_LNG=$(echo "$STORE_COORDS" | cut -d',' -f2)
+log_pass "Resolved Store ID: $STORE_ID (Lat: $STORE_LAT, Lng: $STORE_LNG)"
 log_pass "Resolved Product ID: $PRODUCT_ID"
 
 # 5. Set Driver Online & telemetry ping
@@ -333,7 +336,10 @@ fi
 log_section "13. Progress Milestones E2E"
 
 # 13a. Reached Store
-RESP=$(curl -s -b "$DRIVER_COOKIE_JAR" -w "\n%{http_code}" -X POST "${BASE_URL}/orders/${ORDER_ID}/reached-store")
+RESP=$(curl -s -b "$DRIVER_COOKIE_JAR" -w "\n%{http_code}" \
+  -X POST "${BASE_URL}/orders/${ORDER_ID}/reached-store" \
+  -H "Content-Type: application/json" \
+  -d "{\"latitude\":$STORE_LAT,\"longitude\":$STORE_LNG}")
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 if [ "$HTTP_CODE" = "200" ]; then
   log_pass "Milestone reached: Reached Store"
@@ -363,7 +369,10 @@ else
 fi
 
 # 13d. Reached Location
-RESP=$(curl -s -b "$DRIVER_COOKIE_JAR" -w "\n%{http_code}" -X POST "${BASE_URL}/orders/${ORDER_ID}/reached-location")
+RESP=$(curl -s -b "$DRIVER_COOKIE_JAR" -w "\n%{http_code}" \
+  -X POST "${BASE_URL}/orders/${ORDER_ID}/reached-location" \
+  -H "Content-Type: application/json" \
+  -d "{\"latitude\":12.936,\"longitude\":77.626}")
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 if [ "$HTTP_CODE" = "200" ]; then
   log_pass "Milestone reached: Reached Customer Location"
@@ -411,7 +420,7 @@ fi
 RESP=$(curl -s -b "$DRIVER_COOKIE_JAR" -w "\n%{http_code}" \
   -X POST "${BASE_URL}/orders/${ORDER_ID}/complete" \
   -H "Content-Type: application/json" \
-  -d "{\"pin\":\"$PROOF_PIN\"}")
+  -d "{\"pin\":\"$PROOF_PIN\",\"deliveryProofImageKey\":\"smoke_proof_photo_key\"}")
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 if [ "$HTTP_CODE" = "200" ]; then

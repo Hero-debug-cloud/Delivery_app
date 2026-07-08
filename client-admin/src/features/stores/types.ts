@@ -8,6 +8,7 @@ export interface Store {
   isActive: boolean;
   openingTime: string;
   closingTime: string;
+  catchmentPolygon?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,6 +51,7 @@ export interface CreateStoreInput {
   isActive?: boolean;
   openingTime: string;
   closingTime: string;
+  catchmentPolygon?: string | null;
 }
 
 export type UpdateStoreInput = Partial<CreateStoreInput>;

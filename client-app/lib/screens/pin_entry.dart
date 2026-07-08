@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
 import '../main.dart';
 
 class PinEntryScreen extends StatefulWidget {
@@ -17,6 +18,78 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
   bool _isLoading = false;
 
+  String? _proofImageKey;
+  String? _proofImageUrl;
+  bool _isUploadingPhoto = false;
+
+  Future<void> _takeDeliveryPhoto() async {
+    final picker = ImagePicker();
+    try {
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 60,
+        maxWidth: 600,
+      );
+      if (pickedFile == null) return;
+
+      setState(() {
+        _isUploadingPhoto = true;
+      });
+
+      final multipartFile = await MultipartFile.fromFile(
+        pickedFile.path,
+        filename: pickedFile.name,
+      );
+
+      final formData = FormData.fromMap({
+        'file': multipartFile,
+      });
+
+      final response = await LogiRouteApp.dio.post(
+        '/upload',
+        data: formData,
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        setState(() {
+          _proofImageKey = response.data['key'] as String;
+          _proofImageUrl = response.data['url'] as String?;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF16A34A),
+              content: Text('Delivery proof photo uploaded successfully!'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[PinEntryScreen] Photo upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            content: Text('Failed to upload proof photo: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingPhoto = false;
+        });
+      }
+    }
+  }
+
+  void _removePhoto() {
+    setState(() {
+      _proofImageKey = null;
+      _proofImageUrl = null;
+    });
+  }
+
   Future<void> _verifyPin() async {
     final pin = _controllers.map((c) => c.text).join();
     if (pin.length < 4) {
@@ -30,7 +103,10 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
     try {
       final response = await LogiRouteApp.dio.post(
         '/orders/${widget.orderId}/complete',
-        data: {'pin': pin},
+        data: {
+          'pin': pin,
+          'deliveryProofImageKey': _proofImageKey,
+        },
       );
 
       if (mounted) {
@@ -168,7 +244,77 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                   );
                 }),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+
+              // Photo Proof Section
+              if (_isUploadingPhoto) ...[
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16.0),
+                    child: Column(
+                      children: [
+                        CircularProgressIndicator(strokeWidth: 2),
+                        SizedBox(height: 8),
+                        Text(
+                          'Uploading proof photo...',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else if (_proofImageUrl != null) ...[
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _proofImageUrl!,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Colors.redAccent,
+                            child: IconButton(
+                              icon: const Icon(Icons.close, size: 12, color: Colors.white),
+                              onPressed: _removePhoto,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _takeDeliveryPhoto,
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: const Text('Take Delivery Photo Proof'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF475569),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 32),
 
               // Action Button
               ElevatedButton(
