@@ -30,7 +30,60 @@ This repository is structured as a **monorepo** containing the backend services,
 
 ---
 
-## 3. Quick Start Guide
+## 3. Platform Features Breakdown
+
+The platform consists of ten core modular components:
+
+### 1. Secure Authentication & Session System
+* **Dual-Role OTP Auto-Registration**: Initiates 6-digit verification challenges with a 5-minute Redis TTL. Dynamically creates Customer or Delivery Partner profiles on first verification.
+* **Database Sessions**: Employs HttpOnly Lax session cookies for Next.js Admin Panel security.
+* **Role-Based Guards**: Restricts APIs and client screens according to administrative levels (`super_admin`, `store_manager`, `dispatcher`), `delivery_partner`, or `customer`.
+
+### 2. Catalog & Object Storage Management
+* **Fuzzy Catalog Queries**: Supports server-side search (`ilike`), sorting, and multi-field filters (`categoryId`, `inStock`, `isVeg`).
+* **Multi-Image Drag-and-Drop**: Web console form uploading up to 5 images with type/size validation and real-time progress indicators.
+* **Dual S3/MinIO Setup**: Utilizes discrete signing connections for internal docker-to-docker operations (`minio:9000`) and external browser geolocations (`localhost:9000`).
+
+### 3. Driver Onboarding Verification
+* **Multi-Step Onboarding Form**: Mobile document upload flow (Selfie, Driving License, Identity Proof) built with Flutter `image_picker`.
+* **Admin Verification Queue**: Visual document verification modal for approving or rejecting applications (saves rejection reasons for re-submission).
+* **Manual Driver Creation**: Admin panel form creating driver profiles directly with OTP sign-in.
+
+### 4. Stores & PostGIS Catchment Boundaries
+* **Interactive Map Picker**: Leaflet and OpenStreetMap picker with reverse Nominatim geocoding and browser GPS geolocations.
+* **Catchment Editors**: Boundary drawing tools on Leaflet allowing admins to draw custom service polygons or auto-generate 5km service hexagons.
+* **PostGIS Serviceability Checks**: Backend Spatial containment check (`ST_Contains`) confirming if coordinates fall within active catchment polygons.
+
+### 5. Flutter Customer Client
+* **Smooth Catalog Navigation**: Category tabs, product search screens, and detail overlays.
+* **Cart BLoC Cubit**: Implements reactive cart states calculating handling charges, tax rates, and free delivery thresholds.
+* **Saved Addresses**: Coordinates and label options (Home, Work, Other) indicating default targets.
+
+### 6. Staff & Customer Management
+* **Staff Panel**: Paginated lists of store managers, dispatchers, and administrators.
+* **Customer Panel**: Auditing registered users, contact info, and activity histories.
+* **Glassmorphic Forms**: Modal editors using Zustand and React Hook Form validation.
+
+### 7. Shift Management & Location Telemetry
+* **Shift Association**: Geofenced go-live button requiring driver to be within 100m of their store hub before starting shifts.
+* **GPS Telemetry Timer**: Periodic background scheduler (10-second intervals) logging location pings (speed, coords, battery levels) to Redis GEO indices and TimescaleDB.
+* **Route Replay Playback**: Linear interpolation (LERP) rendering at 60fps, speed control multipliers (2x - 300x), and RDP path-simplification reducing data payload size by 90%.
+
+### 8. Order Lifecycle & Geofenced Milestone Tracking
+* **checkout & Dispatch**: Idempotent order checkouts, broadcast notifications, and dispatcher manual override assignment.
+* **Geofenced Milestones**: GPS checks on pickup (`/reached-store`) and dropoff (`/reached-location`) locking controls if driver is >100m from coordinates.
+* **Dropoff PIN Handshake**: Verifies correct recipient PIN code, uploads delivery proof photos to S3/MinIO, and generates public event timelines.
+
+### 9. Per-Store Payroll & Settlement
+* **Override Rates System**: Custom default parameters override global fallback configurations per hub.
+* **Salary Calculations**: Weekly payout batches calculating base commission rates, mileage calculations from telemetry pings, night surge bonuses (10 PM to 6 AM), and SLA breach penalties.
+* **Scale-Optimized UI**: Infinite scroll selectors and debounced search fields loading thousands of items efficiently.
+* **Bankcsv Export**: Exports approved ledger groups directly as bank-clearing CSV files.
+* **E2E Smoke Tests**: Automated testing suite (`smoke-test-payroll.sh`) runs 14 test cases.
+
+---
+
+## 4. Quick Start Guide
 
 Detailed setup steps are located inside each subdirectory's `README.md`. Below is a quick overview to spin up the development environment.
 
