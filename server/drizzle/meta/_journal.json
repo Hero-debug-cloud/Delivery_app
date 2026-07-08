@@ -85,6 +85,13 @@
       "when": 1783533028331,
       "tag": "0011_fixed_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1783538570770,
+      "tag": "0012_bumpy_bushwacker",
+      "breakpoints": true
     }
   ]
 }

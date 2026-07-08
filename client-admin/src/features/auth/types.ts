@@ -5,6 +5,7 @@ export interface AuthUser {
   phone: string | null;
   role: 'super_admin' | 'store_manager' | 'dispatcher' | 'delivery_partner' | 'customer';
   isActive: boolean;
+  storeId?: string | null;
 }
 
 export interface LoginFormValues {

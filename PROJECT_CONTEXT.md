@@ -80,9 +80,11 @@ delivery_app/
 │   ├── smoke-test-auth.sh              # 16 core authentication checks
 │   ├── smoke-test-products.sh          # 21 catalog and pagination checks
 │   ├── smoke-test-driver-onboarding.sh # 26 driver onboarding + manual creation checks
-│   └── smoke-test-orders.sh            # E2E customer order / driver dispatch checks
+│   ├── smoke-test-orders.sh            # E2E customer order / driver dispatch checks
+│   └── smoke-test-payroll.sh           # E2E per-store payroll & settlement checks
 │
 ├── specs/                      # Product specifications and UI wireframes
+│   └── wireframes/payroll/     # Specifications for payroll module console, ledger, settings
 └── docker-compose.yml          # Dev & Prod container services manager
 ```
 
@@ -291,6 +293,35 @@ delivery_app/
 
 ---
 
+### Module 10: Per-Store Payroll & Financial Settlement ✅ Completed
+- **Database Schema**:
+  - `payroll_configurations` table: Stores global defaults and store-specific overrides for pricing parameters.
+  - `payroll_ledgers` table: Manages weekly settlement summaries, completed deliveries count, telemetry distance, base order earnings, mileage earnings, night surge bonuses, late delivery penalties, and clearing status.
+- **Compensation & Surge Calculations**:
+  - **Base Pay**: `perOrderRate` $\times$ completed orders.
+  - **Distance Pay**: `perKmRate` $\times$ mileage covered. Distances are calculated by taking the Haversine formula sum between sequential driver location pings. If telemetry data is sparse (<2 pings), it falls back to the direct geodetic path between store coordinates and customer address coordinates.
+  - **Night Surge**: Dynamic surge bonus applied if the order's `deliveredAt` timestamp hour is between 10 PM ($\ge 22$) and 6 AM ($< 6$).
+  - **Weather Surge**: Applied based on order status modifiers.
+  - **SLA Breach Penalty**: Deductions subtracted if delivery takes $>30$ minutes from order placement to customer handoff.
+- **Backend API** (`server/src/features/payroll/`):
+  - `GET /payroll/configurations` — fetches overrides list with server-side pagination (`page`, `limit`) and fuzzy store-name query searches.
+  - `GET /payroll/configurations/:storeId` — retrieves configurations for a specific hub (returns custom overrides if present, falling back to global settings).
+  - `POST /payroll/configurations` — creates/updates fallback defaults (`storeId: null`) or store overrides.
+  - `DELETE /payroll/configurations/:id` — removes store override policies, reverting that store's billing queries back to global default rates.
+  - `POST /payroll/generate` — generates weekly payroll ledger entries for a store hub.
+  - `GET /payroll/ledgers` — retrieves paginated ledgers list filtered by status and store hubs, with backend search matching driver name, phone, or ledger record ID.
+  - `PATCH /payroll/ledgers/:id` — updates settlement state (`draft`, `approved`, `hold`, `paid`) and logs bank payment reference IDs.
+  - `GET /payroll/ledgers/export` — exports approved ledgers list as a bank-compliant CSV clearing file.
+- **Admin Panel UI** (`client-admin/src/features/payroll/`):
+  - Collapsible sidebar integration mapping Console, Ledger, and Settings sub-folders.
+  - **Console Dashboard** (`/payroll`): selector form to generate payroll batches, and grid cards showing gross stats (payouts, active drivers, mileage, deliveries) for draft ledgers.
+  - **Audit Ledger** (`/payroll/payouts`): displays paginated list of settlement records with inline detail modal breakdown, status toggling, bank CSV export trigger, and `<InfiniteSelect>` scroll-dropdown filter.
+  - **Rates Settings** (`/payroll/settings`): global defaults configuration form, and backend-paginated custom store overrides list with live debounced name search and `<InfiniteSelect>` Target Hub picker.
+- **Verification**:
+  - Automated smoke test (`./scripts/smoke-test-payroll.sh`) validating all 14 milestones (get configurations, global defaults update, store override creation, override deletion, weekly payroll calculations, hold quarantine, and bank export clearing) runs and passes 100%.
+
+---
+
 ## 4. Operational Commands
 
 ### Docker Compose Services
@@ -310,7 +341,7 @@ bun run dev
 # Run migrations on database
 bun run db:migrate
 
-# Seed database with root super admin (admin@gmail.com / Admin@1234)
+# Seed database with root super admin (admin@gmail.com / Herovinay1@)
 bun run db:seed
 
 # Run TypeScript compilation checks
@@ -348,5 +379,8 @@ flutter analyze
 
 # Runs 17 E2E customer order, dispatch override, and tracking milestones against http://localhost:8000
 ./scripts/smoke-test-orders.sh
+
+# Runs 14 E2E per-store payroll settlement and override rules checks against http://localhost:8000
+./scripts/smoke-test-payroll.sh
 ```
 

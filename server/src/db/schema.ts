@@ -52,6 +52,14 @@ export const orderStatusEnum = pgEnum("order_status", [
   "failed"
 ]);
 
+export const payrollStatusEnum = pgEnum("payroll_status", [
+  "draft",
+  "approved",
+  "hold",
+  "paid"
+]);
+
+
 // 1. users Table
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -318,12 +326,17 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   sessions: many(sessions),
 }));
 
-export const storesRelations = relations(stores, ({ many }) => ({
+export const storesRelations = relations(stores, ({ one, many }) => ({
   deliveryPartners: many(deliveryPartners),
   orders: many(orders),
   products: many(products),
   carts: many(carts),
   driverSessions: many(driverSessions),
+  payrollConfiguration: one(payrollConfigurations, {
+    fields: [stores.id],
+    references: [payrollConfigurations.storeId],
+  }),
+  payrollLedgers: many(payrollLedgers),
 }));
 
 export const deliveryPartnersRelations = relations(deliveryPartners, ({ one, many }) => ({
@@ -338,7 +351,9 @@ export const deliveryPartnersRelations = relations(deliveryPartners, ({ one, man
   orders: many(orders),
   locationPings: many(locationPings),
   driverSessions: many(driverSessions),
+  payrollLedgers: many(payrollLedgers),
 }));
+
 
 export const customerAddressesRelations = relations(customerAddresses, ({ one, many }) => ({
   customer: one(users, {
@@ -483,3 +498,64 @@ export const driverSessionsRelations = relations(driverSessions, ({ one }) => ({
     references: [stores.id],
   }),
 }));
+
+// 15. payroll_configurations Table
+export const payrollConfigurations = pgTable("payroll_configurations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  storeId: uuid("store_id").references(() => stores.id, { onDelete: "cascade" }), // null represents Global Default
+  perOrderRate: integer("per_order_rate").notNull().default(2000), // Base payout per completed order (in cents/paise)
+  perKmRate: integer("per_km_rate").notNull().default(500), // Distance payout rate per km (in cents/paise)
+  nightSurgeRate: integer("night_surge_rate").notNull().default(1000), // Late night flat bonus per order (in cents/paise)
+  weatherSurgeRate: integer("weather_surge_rate").notNull().default(1500), // Adverse weather flat bonus per order (in cents/paise)
+  latePenalty: integer("late_penalty").notNull().default(500), // Penalty for SLA late delivery (in cents/paise)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    storeIdUniqueIdx: uniqueIndex("payroll_configurations_store_id_unique_idx").on(table.storeId),
+  };
+});
+
+// 16. payroll_ledgers Table
+export const payrollLedgers = pgTable("payroll_ledgers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  driverId: uuid("driver_id").notNull().references(() => deliveryPartners.id, { onDelete: "cascade" }),
+  storeId: uuid("store_id").notNull().references(() => stores.id, { onDelete: "cascade" }), // Track which store's billing paid this
+  startDate: text("start_date").notNull(), // "YYYY-MM-DD"
+  endDate: text("end_date").notNull(), // "YYYY-MM-DD"
+  totalDeliveries: integer("total_deliveries").notNull().default(0),
+  totalDistanceMeters: integer("total_distance_meters").notNull().default(0),
+  baseOrderEarnings: integer("base_order_earnings").notNull().default(0),
+  distanceEarnings: integer("distance_earnings").notNull().default(0),
+  bonusEarnings: integer("bonus_earnings").notNull().default(0),
+  penaltyDeductions: integer("penalty_deductions").notNull().default(0),
+  netPayout: integer("net_payout").notNull().default(0),
+  status: payrollStatusEnum("status").notNull().default("draft"),
+  paymentReference: text("payment_reference"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => {
+  return {
+    storeDateRangeIdx: index("payroll_ledgers_store_date_range_idx").on(table.storeId, table.startDate, table.endDate),
+    driverDateRangeIdx: index("payroll_ledgers_driver_date_range_idx").on(table.driverId, table.startDate, table.endDate),
+  };
+});
+
+export const payrollConfigurationsRelations = relations(payrollConfigurations, ({ one }) => ({
+  store: one(stores, {
+    fields: [payrollConfigurations.storeId],
+    references: [stores.id],
+  }),
+}));
+
+export const payrollLedgersRelations = relations(payrollLedgers, ({ one }) => ({
+  driver: one(deliveryPartners, {
+    fields: [payrollLedgers.driverId],
+    references: [deliveryPartners.id],
+  }),
+  store: one(stores, {
+    fields: [payrollLedgers.storeId],
+    references: [stores.id],
+  }),
+}));
+

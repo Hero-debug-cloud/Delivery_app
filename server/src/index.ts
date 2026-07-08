@@ -10,6 +10,7 @@ import { customerAddressesRouter } from "./features/customer-addresses/index.ts"
 import { usersRouter } from "./features/users/index.ts";
 import { telemetryRouter, websocket } from "./features/telemetry/index.ts";
 import { ordersRouter, trackRouter } from "./features/orders/index.ts";
+import { payrollRouter } from "./features/payroll/router.ts";
 
 const app = new Hono();
 
@@ -61,6 +62,9 @@ app.route("/locations", telemetryRouter);
 
 // Customer Tracking Routes Group
 app.route("/track", trackRouter);
+
+// Payroll Routes Group
+app.route("/payroll", payrollRouter);
 
 // Error Handling
 app.onError((err, c) => {

@@ -86,6 +86,9 @@ flutter run
 
 # Runs 26 driver onboarding + manual creation checks
 ./scripts/smoke-test-driver-onboarding.sh
+
+# Runs 14 E2E per-store payroll settlement and override rules checks
+./scripts/smoke-test-payroll.sh
 ```
 
 ---

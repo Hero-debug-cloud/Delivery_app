@@ -48,7 +48,7 @@ log_section "1. Admin Login — Valid Credentials"
 RESP=$(curl -s -c "$COOKIE_JAR" -w "\n%{http_code}" \
   -X POST "${BASE_URL}/auth/admin/login" \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"admin@gmail.com","password":"Admin@1234","rememberMe":false}')
+  -d '{"identifier":"admin@gmail.com","password":"Herovinay1@","rememberMe":false}')
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 
@@ -86,7 +86,7 @@ log_section "3. Admin Login — Non-existent User"
 RESP=$(curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${BASE_URL}/auth/admin/login" \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"ghost@notexist.com","password":"Admin@1234"}')
+  -d '{"identifier":"ghost@notexist.com","password":"Herovinay1@"}')
 if [ "$RESP" = "401" ]; then
   log_pass "POST /auth/admin/login with unknown user → 401"
 else
@@ -151,7 +151,7 @@ log_section "7. Admin Signup — Duplicate Email"
 RESP=$(curl -s -o /dev/null -w "%{http_code}" \
   -X POST "${BASE_URL}/auth/admin/signup" \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"Duplicate\",\"email\":\"admin@gmail.com\",\"password\":\"Admin@1234\",\"confirmPassword\":\"Admin@1234\"}")
+  -d "{\"name\":\"Duplicate\",\"email\":\"admin@gmail.com\",\"password\":\"Herovinay1@\",\"confirmPassword\":\"Herovinay1@\"}")
 if [ "$RESP" = "409" ]; then
   log_pass "POST /auth/admin/signup with duplicate email → 409"
 else
@@ -261,7 +261,7 @@ fi
 RESP=$(curl -s -b "$COOKIE_JAR" -w "\n%{http_code}" \
   -X PATCH "${BASE_URL}/auth/me" \
   -H "Content-Type: application/json" \
-  -d '{"password":"Admin@1234"}')
+  -d '{"password":"Herovinay1@"}')
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 if [ "$HTTP_CODE" = "200" ]; then

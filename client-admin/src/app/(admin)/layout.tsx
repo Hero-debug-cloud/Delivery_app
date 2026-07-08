@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Users,
   User,
+  DollarSign,
 } from "lucide-react";
 import { AuthGuard } from "@/lib/auth-guard";
 import { useAuthStore } from "@/features/auth/store";
@@ -257,6 +258,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { href: "/products", label: "Products", icon: <Package size={18} /> },
         { href: "/users", label: "Staff", icon: <Users size={18} /> },
         { href: "/customers", label: "Customers", icon: <User size={18} /> },
+        { 
+          href: "/payroll", 
+          label: "Payroll", 
+          icon: <DollarSign size={18} />,
+          subItems: [
+            { href: "/payroll", label: "Console" },
+            { href: "/payroll/payouts", label: "Ledger" },
+            { href: "/payroll/settings", label: "Settings" }
+          ]
+        },
       ]
     }
   ];

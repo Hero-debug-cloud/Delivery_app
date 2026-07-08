@@ -16,7 +16,7 @@ async function main() {
 
     if (!adminUser) {
       console.log(`Hashing password for "${adminEmail}"...`);
-      const passwordHash = await Bun.password.hash("Admin@1234", {
+      const passwordHash = await Bun.password.hash("Herovinay1@", {
         algorithm: "bcrypt",
         cost: 10
       });
@@ -32,7 +32,17 @@ async function main() {
       adminUser = newAdmin;
       console.log("Root super admin created successfully.");
     } else {
-      console.log(`User with email "${adminEmail}" already exists. Skipping.`);
+      console.log(`User with email "${adminEmail}" already exists. Resetting password...`);
+      const passwordHash = await Bun.password.hash("Herovinay1@", {
+        algorithm: "bcrypt",
+        cost: 10
+      });
+      await db.update(users).set({
+        passwordHash: passwordHash,
+        name: "Root Super Admin",
+        role: "super_admin",
+        isActive: true,
+      }).where(eq(users.email, adminEmail));
     }
 
     // 2. Stores Setup

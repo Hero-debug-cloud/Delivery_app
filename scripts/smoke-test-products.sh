@@ -48,7 +48,7 @@ log_section "1. Admin Login (super_admin)"
 RESP=$(curl -s -c "$COOKIE_JAR" -w "\n%{http_code}" \
   -X POST "${BASE_URL}/auth/admin/login" \
   -H "Content-Type: application/json" \
-  -d '{"identifier":"admin@gmail.com","password":"Admin@1234","rememberMe":false}')
+  -d '{"identifier":"admin@gmail.com","password":"Herovinay1@","rememberMe":false}')
 HTTP_CODE=$(echo "$RESP" | tail -n1)
 BODY=$(echo "$RESP" | sed '$d')
 
