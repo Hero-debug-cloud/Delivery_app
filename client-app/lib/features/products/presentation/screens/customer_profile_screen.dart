@@ -175,6 +175,7 @@ class CustomerProfileScreen extends StatelessWidget {
                           icon: Icons.history_outlined,
                           title: 'Order History',
                           subtitle: 'Past grocery deliveries & receipts',
+                          onTap: () => context.push('/customer/orders'),
                         ),
                         const Divider(height: 1, color: Color(0xFFE2E8F0)),
                         _buildSettingsLinkTile(

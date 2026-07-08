@@ -79,7 +79,8 @@ delivery_app/
 ├── scripts/                    # Dev scripts and automated tests
 │   ├── smoke-test-auth.sh              # 16 core authentication checks
 │   ├── smoke-test-products.sh          # 21 catalog and pagination checks
-│   └── smoke-test-driver-onboarding.sh # 26 driver onboarding + manual creation checks
+│   ├── smoke-test-driver-onboarding.sh # 26 driver onboarding + manual creation checks
+│   └── smoke-test-orders.sh            # E2E customer order / driver dispatch checks
 │
 ├── specs/                      # Product specifications and UI wireframes
 └── docker-compose.yml          # Dev & Prod container services manager
@@ -262,6 +263,29 @@ delivery_app/
 
 ---
 
+### Module 9: Ordering, Driver Dispatch & Public Tracking ✅ Completed
+- **Database Schema**:
+  - `orders` table: Tracks `externalOrderId` (idempotency key), `storeId`, `customerId`, `assignedDriverId`, coordinates, payment type, `status` (`created`, `assigned`, `accepted`, `picked_up`, `in_transit`, `delivered`, `failed`), `trackingToken`, and `proofPin`.
+  - `order_items` and `order_events` tables: Manage ordered products and state transition logging.
+- **Backend API** (`server/src/features/orders/`):
+  - `POST /orders` — Idempotent order placement (checks if order with `externalOrderId` already exists and returns it).
+  - `GET /orders/broadcasts` — Lists active pending dispatches in range of driver's active hub.
+  - `POST /orders/:id/ignore` — Excludes a broadcast order for a specific driver; flag `ignoredByAll` automatically toggles if no online drivers accept.
+  - `POST /orders/:id/assign` — Admin manual override driver assignment.
+  - `GET /orders/active` — Retrieves current active driver assignment.
+  - `POST /orders/:id/reached-store` / `picked-up` / `out-for-delivery` / `reached-location` — Transition milestones.
+  - `POST /orders/:id/complete` — Secure OTP verification comparing client PIN with `proofPin` to finalize dropoff.
+  - `GET /track/:trackingToken` — Public endpoint returning real-time status and historical event timeline.
+- **Admin Panel UI** (`client-admin/src/app/(admin)/orders/page.tsx`):
+  - Active Orders table with live dispatch queue, details drawer, dynamic actions, driver selection override list, and status filtering.
+- **Flutter Customer/Driver App**:
+  - Customer screens: `/customer/orders` (history list) and `/customer/track/:trackingToken` (interactive map tracking driver pin moving in real time with event details).
+  - Driver Active Delivery: `/active-delivery` with maps routing, GPS updates, milestone buttons (Reached Store $\rightarrow$ Picked Up $\rightarrow$ Out For Delivery $\rightarrow$ Reached Location), and secure PIN entry dropoff.
+- **Verification**:
+  - Automated smoke test (`./scripts/smoke-test-orders.sh`) validating all 17 milestones (checkout $\rightarrow$ ignore $\rightarrow$ assign $\rightarrow$ delivery $\rightarrow$ pin $\rightarrow$ tracking) runs and passes 100%.
+
+---
+
 ## 4. Operational Commands
 
 ### Docker Compose Services
@@ -316,4 +340,8 @@ flutter analyze
 
 # Runs 26 driver onboarding + manual creation test cases against http://localhost:8000
 ./scripts/smoke-test-driver-onboarding.sh
+
+# Runs 17 E2E customer order, dispatch override, and tracking milestones against http://localhost:8000
+./scripts/smoke-test-orders.sh
 ```
+

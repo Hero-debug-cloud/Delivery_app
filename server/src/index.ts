@@ -9,6 +9,7 @@ import { storesRouter } from "./features/stores/index.ts";
 import { customerAddressesRouter } from "./features/customer-addresses/index.ts";
 import { usersRouter } from "./features/users/index.ts";
 import { telemetryRouter, websocket } from "./features/telemetry/index.ts";
+import { ordersRouter, trackRouter } from "./features/orders/index.ts";
 
 const app = new Hono();
 
@@ -52,29 +53,14 @@ app.route("/customer/addresses", customerAddressesRouter);
 // Users Routes Group
 app.route("/users", usersRouter);
 
-// Orders Routes Group (stubs)
-const orders = new Hono();
-orders.get("/", (c) => c.json({ orders: [] }));
-orders.post("/", (c) => c.json({ message: "Order created", id: "order_stub_id" }, 201));
-orders.post("/ingest", (c) => c.json({ message: "Orders bulk ingested", count: 1 }, 201));
-orders.get("/:id", (c) => c.json({ id: c.req.param("id"), status: "created" }));
-orders.patch("/:id", (c) => c.json({ message: "Order updated", id: c.req.param("id") }));
-orders.post("/:id/assign", (c) => c.json({ message: "Driver assigned", order_id: c.req.param("id") }));
-orders.post("/:id/accept", (c) => c.json({ message: "Order accepted by driver", order_id: c.req.param("id") }));
-orders.post("/:id/reject", (c) => c.json({ message: "Order rejected by driver", order_id: c.req.param("id") }));
-orders.post("/:id/picked-up", (c) => c.json({ message: "Order picked up", order_id: c.req.param("id") }));
-orders.post("/:id/delivered", (c) => c.json({ message: "Order delivered confirmed", order_id: c.req.param("id") }));
-orders.post("/:id/failed", (c) => c.json({ message: "Order marked failed", order_id: c.req.param("id") }));
-app.route("/orders", orders);
+// Orders Routes Group
+app.route("/orders", ordersRouter);
 
 // Location Routes Group (real-time telemetry & WebSocket stream)
 app.route("/locations", telemetryRouter);
 
-// Customer Tracking Routes Group (stubs)
-const tracking = new Hono();
-tracking.get("/:trackingToken", (c) => c.json({ order_id: "order_stub_id", status: "in_transit", eta: "15 mins" }));
-tracking.get("/:trackingToken/location", (c) => c.json({ lat: 12.9716, lng: 77.5946 }));
-app.route("/track", tracking);
+// Customer Tracking Routes Group
+app.route("/track", trackRouter);
 
 // Error Handling
 app.onError((err, c) => {

@@ -40,6 +40,8 @@ import 'screens/profile.dart';
 import 'screens/onboarding.dart';
 import 'screens/onboarding_review.dart';
 import 'screens/go_live.dart';
+import 'screens/customer_orders.dart';
+import 'screens/customer_order_tracking.dart';
 
 void main() {
   runApp(const LogiRouteApp());
@@ -291,6 +293,17 @@ class _LogiRouteAppRouterState extends State<LogiRouteAppRouter> {
         GoRoute(
           path: '/customer-profile',
           builder: (ctx, state) => const CustomerProfileScreen(),
+        ),
+        GoRoute(
+          path: '/customer/orders',
+          builder: (ctx, state) => const CustomerOrdersScreen(),
+        ),
+        GoRoute(
+          path: '/customer/track/:trackingToken',
+          builder: (ctx, state) {
+            final token = state.pathParameters['trackingToken'] ?? '';
+            return CustomerOrderTrackingScreen(trackingToken: token);
+          },
         ),
         GoRoute(
           path: '/cart',

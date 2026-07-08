@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../bloc/cart_state.dart';
 import '../../../addresses/presentation/bloc/address_cubit.dart';
 import '../../../addresses/presentation/bloc/address_state.dart';
 import '../../../addresses/domain/models/customer_address.dart';
+import '../../../../../main.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -542,50 +544,136 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  String _generateUUID() {
+    final random = Random.secure();
+    final values = List<int>.generate(16, (i) => random.nextInt(256));
+    
+    // Set version 4 (random)
+    values[6] = (values[6] & 0x0f) | 0x40;
+    // Set variant
+    values[8] = (values[8] & 0x3f) | 0x80;
+    
+    final buffer = StringBuffer();
+    for (var i = 0; i < 16; i++) {
+      if (i == 4 || i == 6 || i == 8 || i == 10) {
+        buffer.write('-');
+      }
+      buffer.write(values[i].toRadixString(16).padLeft(2, '0'));
+    }
+    return buffer.toString();
+  }
+
   Future<void> _handlePlaceOrder(BuildContext context) async {
+    final cartCubit = context.read<CartCubit>();
+    final cartState = cartCubit.state;
+    
+    final addressState = context.read<AddressCubit>().state;
+    final List<CustomerAddress> addresses = addressState is AddressLoaded
+        ? addressState.addresses
+        : <CustomerAddress>[];
+    final defaultAddress = addresses.where((addr) => addr.isDefault).firstOrNull ??
+        (addresses.isNotEmpty ? addresses.first : null);
+
+    if (cartState.itemCount == 0 || defaultAddress == null) return;
+
     setState(() => _isPlacingOrder = true);
 
-    // Simulate API delay
-    await Future.delayed(const Duration(milliseconds: 1500));
+    try {
+      final storeId = cartState.items.values.first.product.storeId;
+      final externalOrderId = _generateUUID();
 
-    if (!mounted) return;
+      final List<Map<String, dynamic>> itemsList = cartState.items.values.map((item) {
+        return {
+          'productId': item.product.id,
+          'quantity': item.quantity,
+        };
+      }).toList();
 
-    // Show success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: const [
-              Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 28),
-              SizedBox(width: 10),
-              Text('Order Confirmed!', style: TextStyle(fontWeight: FontWeight.bold)),
-            ],
-          ),
-          content: const Text(
-            'Your order has been placed successfully. A delivery partner will be assigned to your order shortly.',
-            style: TextStyle(fontSize: 14, height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                // Clear cart, close dialog, and pop to storefront
-                context.read<CartCubit>().clear();
-                Navigator.pop(dialogCtx); // close dialog
-                context.go('/home'); // go to storefront
-              },
-              child: const Text(
-                'Back to Shop',
-                style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold),
+      final response = await LogiRouteApp.dio.post(
+        '/orders',
+        data: {
+          'storeId': storeId,
+          'addressId': defaultAddress.id,
+          'paymentType': _paymentMethod,
+          'externalOrderId': externalOrderId,
+          'items': itemsList,
+        },
+      );
+
+      if (response.statusCode == 201 && response.data != null) {
+        final data = response.data['data'];
+        final trackingToken = data['trackingToken'] as String;
+
+        if (!mounted) return;
+        
+        // Clear cart CUBIT
+        context.read<CartCubit>().clear();
+
+        // Show success dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogCtx) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: const [
+                  Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 28),
+                  SizedBox(width: 10),
+                  Text('Order Confirmed!', style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
               ),
-            ),
-          ],
+              content: const Text(
+                'Your order has been placed successfully. You can track its live delivery status in real-time.',
+                style: TextStyle(fontSize: 14, height: 1.4),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogCtx); // close dialog
+                    context.go('/home'); // go to storefront
+                  },
+                  child: const Text(
+                    'Go to Shop',
+                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dialogCtx); // close dialog
+                    context.go('/customer/track/$trackingToken'); // navigate to tracking screen
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Track Order',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
         );
-      },
-    );
-
-    setState(() => _isPlacingOrder = false);
+      } else {
+        throw Exception("Server error placing order");
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            content: Text('Failed to place order: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPlacingOrder = false);
+      }
+    }
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +19,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   bool _isEndingShift = false;
   int _currentTabIndex = 0;
 
+  Timer? _tasksTimer;
+  List<dynamic> _broadcasts = [];
+  Map<String, dynamic>? _activeOrder;
+  bool _isFetchingTasks = false;
+
   @override
   void initState() {
     super.initState();
@@ -26,18 +32,124 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     // Sync initial state from user profile on startup
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initShiftState();
+      if (ShiftManager.instance.isOnline) {
+        _startTasksPolling();
+      }
     });
   }
 
   @override
   void dispose() {
     ShiftManager.instance.removeListener(_onShiftChanged);
+    _tasksTimer?.cancel();
     super.dispose();
   }
 
   void _onShiftChanged() {
     if (mounted) {
       setState(() {});
+      if (ShiftManager.instance.isOnline) {
+        _startTasksPolling();
+      } else {
+        _stopTasksPolling();
+      }
+    }
+  }
+
+  void _startTasksPolling() {
+    _tasksTimer?.cancel();
+    _fetchTasks(); // fetch once immediately
+    _tasksTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _fetchTasks();
+    });
+  }
+
+  void _stopTasksPolling() {
+    _tasksTimer?.cancel();
+    _tasksTimer = null;
+    setState(() {
+      _broadcasts = [];
+      _activeOrder = null;
+    });
+  }
+
+  Future<void> _fetchTasks() async {
+    if (_isFetchingTasks || !ShiftManager.instance.isOnline) return;
+    _isFetchingTasks = true;
+
+    try {
+      // 1. Check for active delivery job
+      final activeRes = await LogiRouteApp.dio.get('/orders/active');
+      if (activeRes.statusCode == 200) {
+        final activeData = activeRes.data['data'];
+        if (activeData != null) {
+          if (mounted) {
+            setState(() {
+              _activeOrder = activeData;
+              _broadcasts = [];
+            });
+          }
+          _isFetchingTasks = false;
+          return;
+        }
+      }
+
+      // 2. Fetch broadcasts if no active job
+      final broadcastsRes = await LogiRouteApp.dio.get('/orders/broadcasts');
+      if (broadcastsRes.statusCode == 200 && broadcastsRes.data['data'] != null) {
+        if (mounted) {
+          setState(() {
+            _activeOrder = null;
+            _broadcasts = broadcastsRes.data['data'] as List<dynamic>;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[Tasks] Error fetching driver tasks: $e');
+    } finally {
+      _isFetchingTasks = false;
+    }
+  }
+
+  Future<void> _acceptOrder(String orderId) async {
+    try {
+      final response = await LogiRouteApp.dio.post('/orders/$orderId/accept');
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Job accepted! Routing to delivery screen.'), backgroundColor: Colors.green),
+          );
+          context.go('/delivery/$orderId');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Missed! Another driver accepted this job.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        _fetchTasks();
+      }
+    }
+  }
+
+  Future<void> _ignoreOrder(String orderId) async {
+    try {
+      final response = await LogiRouteApp.dio.post('/orders/$orderId/ignore');
+      if (response.statusCode == 200) {
+        if (mounted) {
+          setState(() {
+            _broadcasts.removeWhere((b) => b['id'] == orderId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order ignored.'), duration: Duration(seconds: 1)),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Tasks] Error ignoring order: $e');
     }
   }
 
@@ -309,47 +421,323 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   }
 
   Widget _buildTasksTab(bool isLive) {
+    if (!isLive) {
+      return Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'My Active Tasks',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF020617)),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: const [
+                  Icon(Icons.sensors_off, size: 48, color: Color(0xFF94A3B8)),
+                  SizedBox(height: 12),
+                  Text(
+                    'You are Offline',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Go live on the Dashboard to start receiving orders.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.all(20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'My Active Tasks',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF020617)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'My Active Tasks',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF020617)),
+              ),
+              if (_isFetchingTasks)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2563EB)),
+                ),
+            ],
           ),
           const SizedBox(height: 6),
           const Text(
-            'Keep track of your assigned drops, pickups, and SLA timings.',
+            'Accept broadcasts or manage your active assigned deliveries.',
             style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
-            decoration: BoxDecoration(
+          
+          if (_activeOrder != null) ...[
+            // 1. Show Active Order
+            Card(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.assignment, size: 48, color: Color(0xFF94A3B8)),
-                const SizedBox(height: 12),
-                const Text(
-                  'No active tasks',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+              elevation: 2,
+              shadowColor: Colors.black12,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFFBFDBFE), width: 1.5),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'ACTIVE JOB ASSIGNED',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2563EB), letterSpacing: 0.5),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _activeOrder!['status'].toString().toUpperCase(),
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20, color: Color(0xFFE2E8F0)),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.store, size: 18, color: Color(0xFF64748B)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _activeOrder!['storeName'] ?? 'Pickup Store',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                              ),
+                              Text(
+                                _activeOrder!['storeAddress'] ?? '',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.location_on, size: 18, color: Colors.redAccent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _activeOrder!['customerName'] ?? 'Customer',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                              ),
+                              Text(
+                                _activeOrder!['deliveryAddress'] ?? '',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '₹${((_activeOrder!['grandTotal'] ?? 0) / 100).toStringAsFixed(2)} • ${_activeOrder!['paymentType'].toString().toUpperCase()}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.go('/delivery/${_activeOrder!['id']}');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                          child: const Text('Resume Job', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  isLive
-                      ? 'Waiting for new courier dispatches from the warehouse dispatcher...'
-                      : 'You are currently offline. Start your shift to receive delivery jobs.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                ),
-              ],
+              ),
             ),
-          ),
+          ] else if (_broadcasts.isEmpty) ...[
+            // 2. No Active and No Broadcasts
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: const [
+                  Icon(Icons.notifications_none, size: 48, color: Color(0xFF94A3B8)),
+                  SizedBox(height: 12),
+                  Text(
+                    'No new broadcasts',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Waiting for new dispatches near your active hub...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            // 3. Render Broadcast Cards list
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _broadcasts.length,
+              itemBuilder: (context, idx) {
+                final job = _broadcasts[idx];
+                final orderId = job['id'] as String;
+                final grandTotal = (job['grandTotal'] as num) / 100;
+
+                return Card(
+                  color: Colors.white,
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'ORDER: ${orderId.substring(0, 8).toUpperCase()}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'monospace'),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF3CD),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFFFEEBA)),
+                              ),
+                              child: const Text(
+                                'BROADCAST ACTIVE',
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF856404)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 20, color: Color(0xFFE2E8F0)),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.store, size: 16, color: Colors.grey),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                job['storeName'] ?? 'Hub Pickup',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.location_on, size: 16, color: Colors.redAccent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                job['deliveryAddress'] ?? 'Delivery Destination',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '₹${grandTotal.toStringAsFixed(2)} • ${job['paymentType'].toString().toUpperCase()}',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Row(
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () => _ignoreOrder(orderId),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.redAccent,
+                                    side: const BorderSide(color: Color(0xFFFCA5A5)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Ignore', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () => _acceptOrder(orderId),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF16A34A),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text('Accept Job', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

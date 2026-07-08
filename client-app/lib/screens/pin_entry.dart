@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
+import '../main.dart';
 
 class PinEntryScreen extends StatefulWidget {
   final String orderId;
@@ -15,7 +17,7 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
   final List<FocusNode> _focusNodes = List.generate(4, (_) => FocusNode());
   bool _isLoading = false;
 
-  void _verifyPin() {
+  Future<void> _verifyPin() async {
     final pin = _controllers.map((c) => c.text).join();
     if (pin.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -25,26 +27,54 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
     }
 
     setState(() => _isLoading = true);
-    // Simulate API call to verify pin
-    Future.delayed(const Duration(milliseconds: 1000), () {
-      setState(() => _isLoading = false);
-      if (pin == "1234") {
+    try {
+      final response = await LogiRouteApp.dio.post(
+        '/orders/${widget.orderId}/complete',
+        data: {'pin': pin},
+      );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Color(0xFF16A34A),
+              content: Text('PIN Verified! Order marked as Delivered successfully.'),
+            ),
+          );
+          context.go('/dashboard');
+        } else {
+          final msg = response.data?['message'] ?? 'Failed to verify PIN';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFFDC2626),
+              content: Text(msg),
+            ),
+          );
+        }
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        final msg = e.response?.data?['message'] ?? 'Incorrect PIN or error verification.';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFF16A34A),
-            content: Text('PIN Verified! Order marked as Delivered successfully.'),
-          ),
-        );
-        context.go('/dashboard');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Color(0xFFDC2626),
-            content: Text('Incorrect PIN. Please ask the customer for the correct 4-digit code.'),
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            content: Text(msg),
           ),
         );
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            content: Text('An unexpected error occurred: $e'),
+          ),
+        );
+      }
+    }
   }
 
   @override
