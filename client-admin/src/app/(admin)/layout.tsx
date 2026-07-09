@@ -480,7 +480,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </header>
 
           {/* Scrollable Viewport */}
-          <main className="flex-1 overflow-y-auto p-8">
+          <main key={pathname} className="flex-1 overflow-y-auto p-8 animate-slide-up">
             {children}
           </main>
 
